@@ -7,7 +7,7 @@
     var file = fs.readFileSync('example.js', 'ascii');
 
 
-    var tree = parse(file, {range: true, loc: true});
+    var tree = parse(file, {range: true});
 
     var result = {
         chunks : file.split(''),
@@ -87,12 +87,10 @@
     var affectsScope = function(type) {
         switch(type) {
             case 'Program':
-                return true;
             case 'FunctionDeclaration':
-                return true;
             case 'FunctionExpression':
+            case 'ObjectExpression':
                 return true;
-                break;
         }
         return false;
     };
@@ -124,7 +122,7 @@
         if (!node.range || node.visited) return;
         
         if (affectsScope(node.type)) {
-            node.stack = node.stack || {};
+            node.stack = node.stack || {'stackType': node.type};
         }
         
         if (node.type === 'VariableDeclaration') {
@@ -146,9 +144,22 @@
                 console.log('reference not found: ' + node.name);
                 return; // Only gets here if a reference wasn't found.
             }
+
+        } else if (node.type === 'ObjectExpression') {
+            var stack = node.stack;
+            for(var key in node) {
+                var child = node[key];
+                if (child instanceof Array) {
+                    for (var i=0, l=child.length; i<l; i++) {
+                        if (child[i] && typeof child[i] === 'object' && child[i].type) {
+                            stack[child[i].key.name] = child[i].value;
+                        }
+                    }
+                }
+            }
+            console.log(stack);
         } else {
             node.visited = true;
-            //console.log('visited: ' + node.type + ' | ' + node.id);
             if (node.type === 'BlockStatement' && node.parent &&
                     node.parent.type === 'FunctionDeclaration') {
                 node.parent.visited = true;
