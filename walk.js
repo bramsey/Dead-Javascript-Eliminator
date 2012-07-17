@@ -16,7 +16,7 @@
     };
 
     var insertHelpers = function(node, parent) {
-        if (!node.range) return;
+        if (!node.range || node.parent) return;
 
         node.parent = parent;
 
@@ -43,26 +43,21 @@
                 console.log('deleted: ' + node.id.name);
                 node.parent.update(''); // remove parent if only declarator.
             } else {
-                console.log(node);
+                console.log('deleted: ' + node);
                 node.update('');
             }
         } else if (node.type && node.type === 'FunctionDeclaration') {
             console.log('deleted: ' + node.id.name);
             node.update('');
-            console.log(node.source());
         } else {
             removeDeclaration(node.parent);
         }
         return;
     };
 
-    var walk = function(node, parent) {
+    var walk = function(node, parent, action) {
         insertHelpers(node, parent);
-        if(node.type && 
-            (node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration') &&
-            !node.visited) {
-                removeDeclaration(node);
-        }
+        if (action) action(node);
         for (var key in node) {
             if (key === 'parent') return;
         
@@ -70,16 +65,24 @@
             if (child instanceof Array) {
                 for (var i=0, l=child.length; i<l; i++) {
                     if (child[i] && typeof child[i] === 'object' && child[i].type) {
-                        walk(child[i], node);
+                        walk(child[i], node, action);
                     }
                 }
             } else if (child && typeof child === 'object' && child.type) {
                 insertHelpers(child, node);
-                walk(child, node);
+                walk(child, node, action);
             }
         }
     };
 
+    var deleteWalk = function(node) {
+
+        if(node.type && 
+            (node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration') &&
+            !node.visited) {
+                removeDeclaration(node);
+        }
+    };
     
     var affectsScope = function(type) {
         switch(type) {
@@ -135,8 +138,8 @@
             stack[node.id.name] = node.body;
             return;
         } else if (node.type === 'Identifier') {
+            if (node.parent.type === 'Property') return;
             var reference = getReference(path[path.length-1], node.name, path.slice(0));
-            console.log('ref: ' + JSON.stringify(reference) + ' | ' + node.name);
             if (reference) { 
                 graphify(reference, path.slice(0));
             } else {
@@ -166,10 +169,11 @@
             }
         }
     };
-    
+   
+    walk(tree, undefined);
     graphify(tree, [], 0);
     
-    walk(tree, undefined);
+    walk(tree, undefined, deleteWalk);
     //console.log('\n\n\n\n\n');
     
     //console.log(tree.body[0].expression.callee);
@@ -177,5 +181,5 @@
     console.log('\n\n');
 
     //tree.body[1].update('')
-    console.log(result.toString().trim());
+    //console.log(result.toString().trim());
 })();
