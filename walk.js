@@ -121,9 +121,6 @@
     var graphify = function(node, path) {
         if (!node.range || node.visited) return;
         
-        if (affectsScope(node.type)) {
-            node.stack = node.stack || {'stackType': node.type};
-        }
         
         if (node.type === 'VariableDeclaration') {
             var stack = getStack(path[path.length-1], path.slice(0));
@@ -136,7 +133,7 @@
             stack[node.id.name] = node.body;
             return;
         } else if (node.type === 'Identifier') {
-            if (node.parent.type === 'Property') return;
+            //if (node.parent.type === 'Property') return;
             var reference = getReference(path[path.length-1], node.name, path.slice(0));
             if (reference) { 
                 graphify(reference, path.slice(0));
@@ -152,12 +149,24 @@
                 if (child instanceof Array) {
                     for (var i=0, l=child.length; i<l; i++) {
                         if (child[i] && typeof child[i] === 'object' && child[i].type) {
-                            stack[child[i].key.name] = child[i].value;
+                            var keyName = child[i].key.name ? 
+                                child[i].key.name : child[i].key.value;
+                            stack[child[i].key.name || child[i].key.value] = child[i].value;
                         }
                     }
                 }
             }
-            console.log(stack);
+        } else if (node.type === 'MemberExpression') {
+            var reference = getReference(path[path.length-1], node.object.name, path.slice(0));
+            if (reference) {
+                // populate stack for object if the stack is empty.
+                if (!reference.stack[node.property.name]) graphify(reference);
+                graphify(reference.stack[node.property.name || node.property.value], path.slice(0));
+            } else {
+                console.log('reference not found: ' + node.name);
+                return; // Only gets here if a reference wasn't found.
+            }
+
         } else {
             node.visited = true;
             if (node.type === 'BlockStatement' && node.parent &&
@@ -181,7 +190,11 @@
         }
     };
    
-    walk(tree, undefined);
+    walk(tree, undefined, function(node) {
+        if (node.type && affectsScope(node.type)) {
+            node.stack = node.stack || {'stackType': node.type};
+        }
+    });
     graphify(tree, [], 0);
     
     walk(tree, undefined, deleteWalk);
