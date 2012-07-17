@@ -224,4 +224,5 @@
     
     console.log('');
     //console.log(result.toString().trim()); // output result source.
+    return result.toString().trim();
 })();
