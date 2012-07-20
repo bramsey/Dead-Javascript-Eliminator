@@ -1,4 +1,5 @@
-(function (fileName) {
+(function(exports) {
+var eliminate = exports.eliminate = function(fileName) {
     
     var fs = require('fs');
 
@@ -225,6 +226,7 @@
     });
     
     console.log('');
-    console.log(result.toString().trim()); // output result source.
+    //console.log(result.toString().trim()); // output result source.
     return result.toString().trim();
-})('example.js');
+};
+})(typeof exports === 'undefined' ? (eliminator = {}) : exports);
