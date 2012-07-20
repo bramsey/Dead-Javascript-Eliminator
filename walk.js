@@ -1,4 +1,4 @@
-(function () {
+(function (fileName) {
     
     var fs = require('fs');
 
@@ -6,7 +6,7 @@
     var _ = require('underscore');
     var parse = require('esprima').parse;
 
-    var file = fs.readFileSync('example.js', 'ascii');
+    var file = fs.readFileSync(fileName || 'example.js', 'ascii');
 
 
     // build the ast with esprima.
@@ -165,6 +165,7 @@
             if (reference) {
                 // populate stack for object if the stack is empty.
                 if (!reference.stack[node.property.name]) graphify(reference);
+                reference.visited = true;
                 graphify(reference.stack[node.property.name || 
                         node.property.value], path.slice(0));
             } else {
@@ -216,13 +217,14 @@
     walk(tree, undefined, function(node) {
         if (node.type && 
             (node.type === 'FunctionExpression' || 
-             node.type === 'FunctionDeclaration') &&
+             node.type === 'FunctionDeclaration' ||
+             node.type === 'ObjectExpression') &&
             !node.visited) {
                 removeDeclaration(node);
         }
     });
     
     console.log('');
-    //console.log(result.toString().trim()); // output result source.
+    console.log(result.toString().trim()); // output result source.
     return result.toString().trim();
-})();
+})('example.js');
