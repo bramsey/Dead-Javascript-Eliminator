@@ -51,6 +51,9 @@ var eliminate = exports.eliminate = function(fileContents) {
                 console.log('deleted: ' + node);
                 node.update('');
             }
+        } else if (node.type && node.type === 'AssignmentExpression') {
+            console.log('deleted: ' + node.left.name);
+            node.parent.update('');
         } else if (node.type && node.type === 'FunctionDeclaration') {
             console.log('deleted: ' + node.id.name);
             node.update('');
