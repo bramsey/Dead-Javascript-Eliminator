@@ -239,18 +239,9 @@ var eliminate = exports.eliminate = function(fileContents) {
         */
 		ObjectExpression: function(node, path) {
             var stack = node.stack;
-            for(var key in node) {
-                var child = node[key];
-                if (child instanceof Array) {
-                    for (var i=0, l=child.length; i<l; i++) {
-                        if (child[i] && typeof child[i] === 'object' && 
-                                child[i].type) {
-                            stack[child[i].key.name || child[i].key.value] = 
-                                child[i].value;
-                        }
-                    }
-                }
-            }
+            _.each(node.properties, function(property) {
+                stack[property.key.name || property.key.value] = property.value;
+            });
 		},
         /*
 		FunctionExpression: function(node, path) {
