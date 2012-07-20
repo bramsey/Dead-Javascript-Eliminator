@@ -1,13 +1,11 @@
 (function(exports) {
-var eliminate = exports.eliminate = function(fileName) {
+var eliminate = exports.eliminate = function(fileContents) {
     
-    var fs = require('fs');
-
     // TODO: write each method if that's all I use from underscore.
     var _ = require('underscore');
     var parse = require('esprima').parse;
 
-    var file = fs.readFileSync(fileName || 'example.js', 'ascii');
+    var file = fileContents || '';
 
 
     // build the ast with esprima.

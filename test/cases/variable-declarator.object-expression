@@ -1,0 +1,8 @@
+var two = {
+    run: function() {
+         return 2;
+     }
+};
+
+two.run();
+
