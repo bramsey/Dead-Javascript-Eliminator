@@ -131,41 +131,113 @@ var eliminate = exports.eliminate = function(fileContents) {
             return getReference(path.pop(), name, path);
         }
     };
-    
-    // Turn the ast into a directed graph.
-    // path: array representing previously visited nodes.        
-    var graphify = function(node, path) {
-        if (!node.range || node.visited) return;
-        
-        // Visit nodes based on type.
-        if (node.type === 'VariableDeclaration') {
+
+	var visitor = {
+		/*
+        Program: function(node) {
+			// Affects scope
+			for(var i=0, l=node.body.length; i < l; i++) {
+				walk(node.body[i]);
+			}
+		},
+	
+		// Statements
+		//EmptyStatement: function(node) { },
+		BlockStatement: function(node) {
+			for(var i=0, l=node.body.length; i < l; i++) {
+				walk(node.body[i]);
+			}
+		},
+		ExpressionStatement: function(node) {
+			walk(node.expression);
+		},
+		IfStatement: function(node) {
+			walk(node.text);
+			walk(node.consequent);
+			if(node.alternate) walk(node.alternate);
+		},
+		LabeledStatement: function(node) {
+			walk(node.label);
+			walk(node.body);
+		},
+		BreakStatement: function(node) {
+			walk(node.label);
+		},
+		ContinueStatement: function(node) {
+			walk(node.label);
+		},
+		WithStatement: function(node) {
+			// Affects scope
+			walk(node.object);
+			walk(node.body);
+		},
+		SwitchStatement: function(node) {
+			// QUESTION: what to do with lexical flag?
+			walk(node.discriminant);
+			for(var i=0, l=node.cases.length; i < l; i++) {
+				walk(node.cases[i]);
+			}
+		},
+		ReturnStatement: function(node) {
+			walk(node.argument);
+		},
+		ThrowStatement: function(node) {
+			walk(node.argument);
+		},
+		TryStatement: function(node) {
+			// QUESTION: do what with handlers and finalizer?
+			walk(node.block);
+			for(var i=0, l=node.handlers.length; i<l; i++) {
+				walk(node.handlers[i]);
+			}
+			walk(node.finalizer);
+		},
+		WhileStatement: function(node) {
+			walk(node.test);
+		},
+		DoWhileStatement: function(node) {
+			walk(node.body);
+			walk(node.test);
+		},
+		ForStatement: function(node) {
+			walk(node.init);
+			walk(node.test);
+			walk(node.update);
+			walk(node.body);
+		},
+		ForInStatement: function(node) {
+			// QUESTION: do what with each?
+			walk(node.left);
+			walk(node.right);
+			walk(node.body);
+		},
+		DebuggerStatement: function(node) { },
+	    */
+		// Declarations
+		FunctionDeclaration: function(node, path) {
+            var stack = getStack(path[path.length-1], path.slice(0));
+            stack[node.id.name] = node.body;
+            return;
+		},
+		VariableDeclaration: function(node, path) {
             var stack = getStack(path[path.length-1], path.slice(0));
             _.each(node.declarations, function(declarator) {
                 stack[declarator.id.name] = declarator.init;
             });
             return;
-        } else if (node.type === 'AssignmentExpression') {
-            if (node.operator === '=') {
-                var stack = getStackWithReference(path[path.length-1], 
-                        node.left.name,
-                        path.slice(0)) ||
-                        getStack(path[path.length-1], path.slice(0));
-                stack[node.left.name] = node.right;
-            }
-        } else if (node.type === 'FunctionDeclaration') {
-            var stack = getStack(path[path.length-1], path.slice(0));
-            stack[node.id.name] = node.body;
-            return;
-        } else if (node.type === 'Identifier') {
-            var reference = getReference(path[path.length-1], 
-                    node.name, path.slice(0));
-            if (reference) { 
-                graphify(reference, path.slice(0));
-            } else {
-                console.log('reference not found: ' + node.name);
-                return; // Only gets here if a reference wasn't found.
-            }
-        } else if (node.type === 'ObjectExpression') {
+		},
+	    /*
+		VariableDeclarator: function(node, path) {
+		},
+		// Expressions
+		ThisExpression: function(node, path) { },
+		ArrayExpression: function(node, path) {
+			for(var i=0, l=node.elements.length; i<l; i++) {
+				walk(node.elements[i]);
+			}
+		},
+        */
+		ObjectExpression: function(node, path) {
             var stack = node.stack;
             for(var key in node) {
                 var child = node[key];
@@ -179,7 +251,61 @@ var eliminate = exports.eliminate = function(fileContents) {
                     }
                 }
             }
-        } else if (node.type === 'MemberExpression') {
+		},
+        /*
+		FunctionExpression: function(node, path) {
+		},
+		SequenceExpression: function(node, path) {
+			for(var i=0, l=node.expressions.length; i < l; i++) {
+				walk(node.expressions[i]);
+			}
+		},
+		UnaryExpression: function(node, path) {
+			// TODO: do something with operator
+			walk(node.expression);
+		},
+		// CONTINUE HERE
+		BinaryExpression: function(node, path) {
+			// TODO: do something with operator
+			walk(node.left);
+			walk(node.right);
+		},
+        */
+		AssignmentExpression: function(node, path) {
+            if (node.operator === '=') {
+                var stack = getStackWithReference(path[path.length-1], 
+                        node.left.name,
+                        path.slice(0)) ||
+                        getStack(path[path.length-1], path.slice(0));
+                stack[node.left.name] = node.right;
+            }
+		},
+        /*
+		UpdateExpression: function(node, path) {
+			// QUESTION: do what with prefix boolean?
+			// TODO: do something with operator
+			walk(node.argument);
+		},
+		LogicalExpression: function(node, path) {
+			// TODO: do something with operator
+			walk(node.left);
+			walk(node.right);
+		},
+		ConditionalExpression: function(node, path) {
+			walk(node.test);
+			walk(node.alternate);
+			walk(node.consequent);
+		},
+		NewExpression: function(node, path) {
+			walk(node.callee);
+			for(var i=0, l=node.arguments.length; i<l; i++) {
+				walk(node.arguments[i]);
+			}
+		},
+		CallExpression: function(node, path) {
+		},
+        */
+		MemberExpression: function(node, path) {
             var reference = getReference(path[path.length-1], 
                     node.object.name, path.slice(0));
             if (reference) {
@@ -192,7 +318,72 @@ var eliminate = exports.eliminate = function(fileContents) {
                 console.log('reference not found: ' + node.name);
                 return; // Only gets here if a reference wasn't found.
             }
-
+		},
+	
+		// Patterns
+		// QUESTION: what should go in patterns???
+	
+		// Clauses
+        /*
+		SwitchCase: function(node, path) {
+			walk(node.test);
+			for(var i=0, l=node.consequent.length; i<l; i++) {
+				walk(node.consequent[i]);
+			}
+		},
+		CatchClause: function(node, path) {
+			walk(node.param);
+			walk(node.body);
+		},
+	
+		// Miscelaneous
+		Property: function(node, path) {
+			// QUESTION: do what with kind?
+			walk(node.key);
+			walk(node.value);
+		},
+        */
+		Identifier: function(node, path) {
+            var reference = getReference(path[path.length-1], 
+                    node.name, path.slice(0));
+            if (reference) { 
+                graphify(reference, path.slice(0));
+            } else {
+                console.log('reference not found: ' + node.name);
+                return; // Only gets here if a reference wasn't found.
+            }
+		}
+        /*
+		Literal: function(node, path) {
+			// TODO: assign value to something.
+			// access with: node.value
+		},
+		UnaryOperator: function(node, path) {
+			walk(node.token);
+		},
+		BinaryOperator: function(node, path) {
+			walk(node.token);
+		},
+		LogicalOperator: function(node, path) {
+			walk(node.token);
+		},
+		AssignmentOperator: function(node, path) {
+			walk(node.token);
+		},
+		UpdateOperator: function(node, path) {
+			walk(node.token);
+		}
+        */
+	};
+    
+    // Turn the ast into a directed graph.
+    // path: array representing previously visited nodes.        
+    var graphify = function(node, path) {
+        if (!node.range || node.visited) return;
+        
+        // Visit nodes based on type.
+        if (visitor[node.type]) {
+            visitor[node.type](node, path);
         } else {
             node.visited = true;
 
