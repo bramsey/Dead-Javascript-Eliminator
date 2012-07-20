@@ -115,6 +115,9 @@ var eliminate = exports.eliminate = function(fileContents) {
     var getStackWithReference = function(node, ref, path) {
         if (!node) {
             return;
+        } else if (ref.type === 'MemberExpression') {
+            var obj = getReference(node, ref.object.name, path.slice(0));
+            return obj.stack;
         } else if (node.stack && node.stack[ref]) {
             return node.stack;
         } else {
@@ -265,10 +268,12 @@ var eliminate = exports.eliminate = function(fileContents) {
 		AssignmentExpression: function(node, path) {
             if (node.operator === '=') {
                 var stack = getStackWithReference(path[path.length-1], 
-                        node.left.name,
+                        node.left,
                         path.slice(0)) ||
                         getStack(path[path.length-1], path.slice(0));
-                stack[node.left.name] = node.right;
+                stack[node.left.name || 
+                    node.left.property.name ||
+                    node.left.property.value] = node.right;
             }
 		},
         /*
