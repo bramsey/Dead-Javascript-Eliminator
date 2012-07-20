@@ -1,7 +1,8 @@
 var fs = require('fs');
 var parse = require('esprima').parse;
-
-var file = fs.readFileSync('test/cases/variable-declarator.object-expression.js', 'ascii');
+//var path = 'test/cases/assignment-expression.function-expression.js';
+var path = 'example.js';
+var file = fs.readFileSync(path, 'ascii');
 
 var tree = parse(file, {range: false});
 
