@@ -108,6 +108,16 @@ var eliminate = exports.eliminate = function(fileContents) {
             return getStack(path.pop(), path);
         }
     };
+
+    var getStackWithReference = function(node, ref, path) {
+        if (!node) {
+            return;
+        } else if (node.stack && node.stack[ref]) {
+            return node.stack;
+        } else {
+            return getStackWithReference(path.pop(), ref, path);
+        }
+    };
     
     // find the specified reference in the scoped stack hierarchy.
     var getReference = function(node, name, path) {
@@ -131,6 +141,14 @@ var eliminate = exports.eliminate = function(fileContents) {
                 stack[declarator.id.name] = declarator.init;
             });
             return;
+        } else if (node.type === 'AssignmentExpression') {
+            if (node.operator === '=') {
+                var stack = getStackWithReference(path[path.length-1], 
+                        node.left.name,
+                        path.slice(0)) ||
+                        getStack(path[path.length-1], path.slice(0));
+                stack[node.left.name] = node.right;
+            }
         } else if (node.type === 'FunctionDeclaration') {
             var stack = getStack(path[path.length-1], path.slice(0));
             stack[node.id.name] = node.body;
