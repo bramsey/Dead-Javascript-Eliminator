@@ -21,7 +21,11 @@ var eliminate = exports.eliminate = function(fileContents) {
     var insertHelpers = function(node, parent) {
         if (!node.range || node.parent) return;
 
-        node.parent = parent; // reference to parent node.
+        // reference to parent node.
+        node.parent = parent; 
+
+        // initialize stacks
+        if (affectsScope(node.type)) node.stack = node.stack || {};
         
         // returns the current source for the node.
         node.source = function () {
@@ -40,10 +44,10 @@ var eliminate = exports.eliminate = function(fileContents) {
     };
 
     // walk up the tree until the closest declaration is found then remove it.
+    // TODO: refactor to use a deletor similar to visitor pattern.
     var removeDeclaration = function(node) {
-        if (!node) {
-            return;
-        } else if (node.type && node.type === 'VariableDeclarator') {
+        if (!node || !node.type) return;
+        if (node.type === 'VariableDeclarator') {
             if (node.parent.declarations.length === 1) {
                 console.log('deleted: ' + node.id.name);
                 node.parent.update(''); // remove parent if only declarator.
@@ -51,10 +55,10 @@ var eliminate = exports.eliminate = function(fileContents) {
                 console.log('deleted: ' + node);
                 node.update('');
             }
-        } else if (node.type && node.type === 'AssignmentExpression') {
+        } else if (node.type === 'AssignmentExpression') {
             console.log('deleted: ' + node.left.name);
             node.parent.update('');
-        } else if (node.type && node.type === 'FunctionDeclaration') {
+        } else if (node.type === 'FunctionDeclaration') {
             console.log('deleted: ' + node.id.name);
             node.update('');
         } else {
@@ -103,36 +107,30 @@ var eliminate = exports.eliminate = function(fileContents) {
     
     // find the nearest stack by walking up the tree.
     var getStack = function(node, path) {
-        if (!node) {
-            return;
-        } else if (node.stack) {
-            return node.stack;
-        } else {
-            return getStack(path.pop(), path);
-        }
+        if (!node) return;
+        return node.stack ? node.stack : getStack(path.pop(), path);
     };
 
+    // find the nearest stack with the specified reference.
     var getStackWithReference = function(node, ref, path) {
-        if (!node) {
-            return;
-        } else if (ref.type === 'MemberExpression') {
+        if (!node) return;
+            
+        if (ref.type === 'MemberExpression') {
             var obj = getReference(node, ref.object.name, path.slice(0));
-            return obj.stack;
-        } else if (node.stack && node.stack[ref]) {
-            return node.stack;
-        } else {
-            return getStackWithReference(path.pop(), ref, path);
-        }
+            return obj ? obj.stack : undefined;
+        } 
+
+        return (node.stack && node.stack[ref.name || ref.value]) ?
+            node.stack :
+            getStackWithReference(path.pop(), ref, path);
     };
     
     // find the specified reference in the scoped stack hierarchy.
     var getReference = function(node, name, path) {
         if (!node) return;
-        if (node.stack && node.stack[name]) {
-            return node.stack[name];
-        } else {
-            return getReference(path.pop(), name, path);
-        }
+        return (node.stack && node.stack[name]) ?
+            node.stack[name] :
+            getReference(path.pop(), name, path);
     };
 
 	var visitor = {
@@ -389,7 +387,6 @@ var eliminate = exports.eliminate = function(fileContents) {
                 node.parent.visited = true;
             }
 
-            // TODO: abstract this walking for the generic case.
             for(var key in node) {
                 if (key === 'parent') return;
                 
@@ -409,12 +406,9 @@ var eliminate = exports.eliminate = function(fileContents) {
     };
    
     // Pass to initialize helpers and stacks.
-    walk(tree, undefined, function(node) {
-        if (node.type && affectsScope(node.type)) {
-            node.stack = node.stack || {'stackType': node.type};
-        }
-    });
+    walk(tree);
     
+    // Pass to mark nodes as visited.
     graphify(tree, [], 0);
     
     /**
@@ -422,12 +416,15 @@ var eliminate = exports.eliminate = function(fileContents) {
      * unvisited functions are assumed to be unused.
      */
     walk(tree, undefined, function(node) {
-        if (node.type && 
-            (node.type === 'FunctionExpression' || 
-             node.type === 'FunctionDeclaration' ||
-             node.type === 'ObjectExpression') &&
-            !node.visited) {
+        if (!node.type || node.visited) return;
+
+        // check for types that should be deleted.
+        switch(node.type) {
+            case 'FunctionExpression':
+            case 'FunctionDeclaration':
+            case 'ObjectExpression':
                 removeDeclaration(node);
+                break;
         }
     });
     
