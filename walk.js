@@ -117,12 +117,16 @@ var eliminate = exports.eliminate = function(fileContents) {
             
         if (ref.type === 'MemberExpression') {
             var obj = getReference(node, ref.object.name, path.slice(0));
+            obj.visited = true;// TODO: this belongs someplace else probably
             return obj ? obj.stack : undefined;
         } 
 
-        return (node.stack && node.stack[ref.name || ref.value]) ?
-            node.stack :
+        if (node.stack && node.stack[ref.name || ref.value]) {
+            node.visited = true;
+            return node.stack;
+        } else {
             getStackWithReference(path.pop(), ref, path);
+        }
     };
     
     // find the specified reference in the scoped stack hierarchy.
@@ -309,7 +313,8 @@ var eliminate = exports.eliminate = function(fileContents) {
                 graphify(reference.stack[node.property.name || 
                         node.property.value], path.slice(0));
             } else {
-                console.log('reference not found: ' + node.name);
+                // TODO: throw error instead of console log.
+                //console.log('reference not found: ' + node.name);
                 return; // Only gets here if a reference wasn't found.
             }
 		},
@@ -343,7 +348,8 @@ var eliminate = exports.eliminate = function(fileContents) {
             if (reference) { 
                 graphify(reference, path.slice(0));
             } else {
-                console.log('reference not found: ' + node.name);
+                // TODO: handle errors better.
+                //console.log('reference not found: ' + node.name);
                 return; // Only gets here if a reference wasn't found.
             }
 		}
