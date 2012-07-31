@@ -28,16 +28,15 @@ var eliminate = exports.eliminate = function(fileContents) {
         if (affectsScope(node.type)) node.stack = node.stack || {};
         
         // returns the current source for the node.
-        node.source = function () {
+        node.source = function() {
             return result.chunks.slice(
                 node.range[0], node.range[1] + 1
             ).join('');
         };
 
-        // updates the source for the node.
-        node.update = function (s) {
-            result.chunks[node.range[0]] = s;
-            for (var i = node.range[0] + 1; i < node.range[1] + 1; i++) {
+        // deletes the source for the node.
+        node.destroy = function() {
+            for (var i = node.range[0]; i < node.range[1] + 1; i++) {
                 result.chunks[i] = '';
             }
         };
@@ -50,17 +49,17 @@ var eliminate = exports.eliminate = function(fileContents) {
         if (node.type === 'VariableDeclarator') {
             if (node.parent.declarations.length === 1) {
                 console.log('deleted: ' + node.id.name);
-                node.parent.update(''); // remove parent if only declarator.
+                node.parent.destroy(); // remove parent if only declarator.
             } else {
                 console.log('deleted: ' + node);
-                node.update('');
+                node.destroy();
             }
         } else if (node.type === 'AssignmentExpression') {
             console.log('deleted: ' + node.left.name);
-            node.parent.update('');
+            node.parent.destroy();
         } else if (node.type === 'FunctionDeclaration') {
             console.log('deleted: ' + node.id.name);
-            node.update('');
+            node.destroy();
         } else {
             removeDeclaration(node.parent);
         }
@@ -422,7 +421,7 @@ var eliminate = exports.eliminate = function(fileContents) {
     walk(tree);
     
     // Pass to mark nodes as visited.
-    graphify(tree, [], 0);
+    graphify(tree, []);
     
     /**
      * Pass to delete unused functions.
@@ -443,6 +442,7 @@ var eliminate = exports.eliminate = function(fileContents) {
     
     console.log('');
     //console.log(result.toString().trim()); // output result source.
+    //console.log(result.chunks);
     return result.toString().trim();
 };
 })(typeof exports === 'undefined' ? (eliminator = {}) : exports);
