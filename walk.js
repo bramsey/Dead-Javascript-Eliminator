@@ -269,10 +269,17 @@ var eliminate = exports.eliminate = function(fileContents) {
         */
 		AssignmentExpression: function(node, path) {
             if (node.operator === '=') {
-                var stack = getStackWithReference(path[path.length-1], 
-                        node.left,
-                        path.slice(0)) ||
-                        getStack(path[path.length-1], path.slice(0));
+                var stack, obj;
+                if (node.left.type === 'MemberExpression') {
+                    obj = getReference(path[path.length-1],
+                            node.left.object.name, path.slice(0));
+                    stack = obj ? obj.stack : undefined; 
+                } else {
+                    stack = getStackWithReference(path[path.length-1], 
+                            node.left,
+                            path.slice(0)) ||
+                            getStack(path[path.length-1], path.slice(0));
+                }
                 stack[node.left.name || 
                     node.left.property.name ||
                     node.left.property.value] = node.right;
@@ -308,7 +315,7 @@ var eliminate = exports.eliminate = function(fileContents) {
                     node.object.name, path.slice(0));
             if (reference) {
                 // populate stack for object if the stack is empty.
-                if (!reference.stack[node.property.name]) graphify(reference);
+                if (!reference.stack[node.property.name || node.property.value]) graphify(reference);
                 reference.visited = true;
                 graphify(reference.stack[node.property.name || 
                         node.property.value], path.slice(0));
@@ -411,7 +418,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         }
     };
    
-    // Pass to initialize helpers and stacks.
+   // Pass to initialize helpers and stacks.
     walk(tree);
     
     // Pass to mark nodes as visited.
