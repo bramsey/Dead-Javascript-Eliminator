@@ -420,6 +420,8 @@ var visitor = {
         var reference = getReference(path[path.length-1], 
                 node.name, path.slice(0));
         if (reference) { 
+            visit(reference.value);
+            visit(reference.declaration);
             graphify(reference.value, path.slice(0));
         } else {
             // TODO: handle errors better.
@@ -518,6 +520,7 @@ var eliminate = exports.eliminate = function(fileContents) {
             case 'FunctionExpression':
             case 'FunctionDeclaration':
             case 'ObjectExpression':
+            case 'AssignmentExpression':
                 removeDeclaration(node);
                 break;
         }
