@@ -324,22 +324,36 @@ var visitor = {
     */
     AssignmentExpression: function(node, path) {
         if (node.operator === '=') {
-            var stack, obj;
+            var stack, obj, declaration, leftKey;
+            if (node.left.property) {
+                leftKey = node.left.property.name ||
+                          node.left.property.value;
+            } else {
+                leftKey = node.left.name ||
+                          node.left.value;
+            }
             if (node.left.type === 'MemberExpression') {
                 obj = getReference(path[path.length-1],
                         node.left.object.name, path.slice(0)).value;
                 stack = obj ? obj.stack : undefined; 
+                if (obj) {
+                    declaration = _.find(obj.properties, function(property) {
+                        var propKey;
+                        propKey = property.key.name || property.key.value;
+                        leftKey === propKey;
+                    });
+                }
             } else {
                 stack = getStackWithReference(path[path.length-1], 
                         node.left,
                         path.slice(0)) ||
                         getStack(path[path.length-1], path.slice(0));
+                declaration = getReference(path[path.length-1], leftKey, path.slice(0));
             }
-            stack[node.left.name || 
-                node.left.property.name ||
-                node.left.property.value] = {
+            stack[leftKey] = {
                     value: node.right,
-                    declaration: node.left
+                    assignment: node.left,
+                    declaration: declaration
                 };
         }
     },
@@ -370,21 +384,20 @@ var visitor = {
     */
     MemberExpression: function(node, path) {
         var reference = getReference(path[path.length-1], 
-                node.object.name, path.slice(0));
+                node.object.name, path.slice(0)),
+            propKey = node.property.name || node.property.value;
         if (reference) {
             // populate stack for object if the stack is empty.
             if (!reference.value.stack[node.property.name || 
                     node.property.value]) graphify(reference.value, path.slice(0));
             visit(reference.value);
-            //console.log(stringify(reference.declaration, '   ', ''));
             visit(reference.declaration);
-            if (reference.value.stack[node.property.name || node.property.value]) {
-                visit(reference.value.stack[node.property.name ||
-                        node.property.value].value);
-                visit(reference.value.stack[node.property.name ||
-                        node.property.value].declaration);
-                graphify(reference.value.stack[node.property.name || 
-                    node.property.value], path.slice(0));
+            if (reference.assignment) visit(reference.assignment);
+            if (reference.value.stack[propKey]) {
+                visit(reference.value.stack[propKey].value);
+                visit(reference.value.stack[propKey].declaration);
+                if (reference.value.stack[propKey].assignment) visit(reference.value.stack[propKey].assignment);
+                graphify(reference.value.stack[propKey], path.slice(0));
             }
         } else {
             // TODO: throw error instead of console log.
@@ -422,6 +435,7 @@ var visitor = {
         if (reference) { 
             visit(reference.value);
             visit(reference.declaration);
+            if (reference.assignment) visit(reference.assignment);
             graphify(reference.value, path.slice(0));
         } else {
             // TODO: handle errors better.
@@ -521,6 +535,8 @@ var eliminate = exports.eliminate = function(fileContents) {
             case 'FunctionDeclaration':
             case 'ObjectExpression':
             case 'AssignmentExpression':
+            case 'VariableDeclaration':
+            case 'VariableDeclarator':
                 removeDeclaration(node);
                 break;
         }
