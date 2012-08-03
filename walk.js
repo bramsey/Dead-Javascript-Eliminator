@@ -45,7 +45,6 @@ var eliminate = exports.eliminate = function(fileContents) {
     // walk up the tree until the closest declaration is found then remove it.
     // TODO: refactor to use a deletor similar to visitor pattern.
     var removeDeclaration = function(node) {
-        if (!node || !node.type) return;
         if (node.type === 'VariableDeclarator') {
             if (node.parent.declarations.length === 1) {
                 console.log('deleted: ' + node.id.name);
@@ -61,7 +60,7 @@ var eliminate = exports.eliminate = function(fileContents) {
             console.log('deleted: ' + node.id.name);
             node.destroy();
         } else {
-            removeDeclaration(node.parent);
+            if (node.parent) removeDeclaration(node.parent);
         }
         return;
     };
@@ -75,7 +74,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         if (action) action(node);
 
         for (var key in node) {
-            if (key === 'parent') return;
+            if (key === 'parent') continue;
         
             var child = node[key];
             if (child instanceof Array) {
@@ -316,8 +315,10 @@ var eliminate = exports.eliminate = function(fileContents) {
                 // populate stack for object if the stack is empty.
                 if (!reference.stack[node.property.name || node.property.value]) graphify(reference);
                 reference.visited = true;
-                graphify(reference.stack[node.property.name || 
+                if (reference.stack[node.property.name || node.property.value]) {
+                    graphify(reference.stack[node.property.name || 
                         node.property.value], path.slice(0));
+                }
             } else {
                 // TODO: throw error instead of console log.
                 //console.log('reference not found: ' + node.name);
@@ -385,7 +386,7 @@ var eliminate = exports.eliminate = function(fileContents) {
     // Turn the ast into a directed graph.
     // path: array representing previously visited nodes.        
     var graphify = function(node, path) {
-        if (!node.range || node.visited) return;
+        if (node.visited) return;
         
         // Visit nodes based on type.
         if (visitor[node.type]) {
@@ -400,7 +401,7 @@ var eliminate = exports.eliminate = function(fileContents) {
             }
 
             for(var key in node) {
-                if (key === 'parent') return;
+                if (key === 'parent') continue;
                 
                 var child = node[key];
                 if (child instanceof Array) {
