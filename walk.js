@@ -1,7 +1,8 @@
 (function(exports) {
 var _ = require('underscore'),
     parse = require('esprima').parse,
-    result;
+    result,
+    tree;
 
 var stringify = function(node, tab, indent) {
     var output = '';
@@ -158,6 +159,20 @@ var getReference = function(node, name, path) {
         getReference(path.pop(), name, path);
 };
 
+var visit = function(node) {
+    if (!node) return;
+    node.visited = true;
+
+    switch (node.type) {
+        case 'ExpressionStatement':
+        case 'VariableDeclaration':
+        case 'FunctionDeclaration':
+            return;
+        default:
+            visit(node.parent);
+            break;
+    }
+};
 var visitor = {
     /*
     Program: function(node) {
@@ -262,6 +277,16 @@ var visitor = {
     VariableDeclarator: function(node, path) {
     },
     // Expressions
+    */
+    ExpressionStatement: function(node, path) {
+        if (node.expression.type !== 'AssignmentExpression') {
+            node.visited = true;
+            graphify(node.expression, path.concat(node));
+        } else {
+            graphify(node.expression, path);
+        }
+    },
+    /*
     ThisExpression: function(node, path) { },
     ArrayExpression: function(node, path) {
         for(var i=0, l=node.elements.length; i<l; i++) {
@@ -302,7 +327,7 @@ var visitor = {
             var stack, obj;
             if (node.left.type === 'MemberExpression') {
                 obj = getReference(path[path.length-1],
-                        node.left.object.name, path.slice(0));
+                        node.left.object.name, path.slice(0)).value;
                 stack = obj ? obj.stack : undefined; 
             } else {
                 stack = getStackWithReference(path[path.length-1], 
@@ -350,8 +375,14 @@ var visitor = {
             // populate stack for object if the stack is empty.
             if (!reference.value.stack[node.property.name || 
                     node.property.value]) graphify(reference.value, path.slice(0));
-            reference.value.visited = true;
+            visit(reference.value);
+            //console.log(stringify(reference.declaration, '   ', ''));
+            visit(reference.declaration);
             if (reference.value.stack[node.property.name || node.property.value]) {
+                visit(reference.value.stack[node.property.name ||
+                        node.property.value].value);
+                visit(reference.value.stack[node.property.name ||
+                        node.property.value].declaration);
                 graphify(reference.value.stack[node.property.name || 
                     node.property.value], path.slice(0));
             }
@@ -461,7 +492,7 @@ var eliminate = exports.eliminate = function(fileContents) {
     var file = fileContents || '';
 
     // build the ast with esprima.
-    var tree = parse(file, {range: true});
+    tree = parse(file, {range: true});
 
     result = {
         chunks : file.split(''),
@@ -492,7 +523,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         }
     });
     
-    //console.log(stringify(tree, '   ', ''));
+    console.log(stringify(tree, '   ', ''));
     console.log('');
     //console.log(result.toString().trim()); // output result source.
     //console.log(result.chunks);
