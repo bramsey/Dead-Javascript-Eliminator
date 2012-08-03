@@ -1,9 +1,46 @@
 (function(exports) {
+var _ = require('underscore');
+var parse = require('esprima').parse;
+
+var stringify = exports.stringify = function(node, tab, indent) {
+    var output = '';
+    for (var key in node) {
+        if (key === 'parent' || key === 'source' || key === 'destroy') continue;
+    
+        var child = node[key];
+        if (child instanceof Array) {
+            if (key === 'range') {
+                output += indent + key + ': ' + child[0] + ' - ' + child[1] + '\n';
+            } else {
+                output += indent + key + ':\n';
+                for (var i=0, l=child.length; i<l; i++) {
+                    if (child[i] && typeof child[i] === 'object' && 
+                            child[i].type) {
+                        output += stringify(child[i], tab, indent+tab);
+                    }
+                }
+            }
+        } else if (child && typeof child === 'object') {
+            output += indent + key + ':\n';
+            output += stringify(child, tab, indent+tab);
+        } else if (child && typeof child === 'string' || 
+                            typeof child === 'number' || 
+                            typeof child === 'boolean') {
+            output += indent;
+            if (key === 'type') {
+                output += child + '\n';
+                indent += tab;
+            } else {
+                output += key + ': ' + child + '\n';
+            }
+        }
+    }
+    return output;
+};
+
 var eliminate = exports.eliminate = function(fileContents) {
     
     // TODO: write each method if that's all I use from underscore.
-    var _ = require('underscore');
-    var parse = require('esprima').parse;
 
     var file = fileContents || '';
 
@@ -441,6 +478,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         }
     });
     
+    console.log(stringify(tree, '   ', ''));
     console.log('');
     //console.log(result.toString().trim()); // output result source.
     //console.log(result.chunks);
