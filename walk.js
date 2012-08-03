@@ -242,13 +242,19 @@ var visitor = {
     // Declarations
     FunctionDeclaration: function(node, path) {
         var stack = getStack(path[path.length-1], path.slice(0));
-        stack[node.id.name] = node.body;
+        stack[node.id.name] = {
+            value: node.body,
+            declaration: node
+        }
         return;
     },
     VariableDeclaration: function(node, path) {
         var stack = getStack(path[path.length-1], path.slice(0));
         _.each(node.declarations, function(declarator) {
-            stack[declarator.id.name] = declarator.init;
+            stack[declarator.id.name] = {
+                value: declarator.init,
+                declaration: declarator
+            };
         });
         return;
     },
@@ -266,7 +272,10 @@ var visitor = {
     ObjectExpression: function(node, path) {
         var stack = node.stack;
         _.each(node.properties, function(property) {
-            stack[property.key.name || property.key.value] = property.value;
+            stack[property.key.name || property.key.value] = {
+                value: property.value,
+                declaration: property
+            };
         });
     },
     /*
@@ -303,7 +312,10 @@ var visitor = {
             }
             stack[node.left.name || 
                 node.left.property.name ||
-                node.left.property.value] = node.right;
+                node.left.property.value] = {
+                    value: node.right,
+                    declaration: node.left
+                };
         }
     },
     /*
@@ -336,10 +348,11 @@ var visitor = {
                 node.object.name, path.slice(0));
         if (reference) {
             // populate stack for object if the stack is empty.
-            if (!reference.stack[node.property.name || node.property.value]) graphify(reference);
-            reference.visited = true;
-            if (reference.stack[node.property.name || node.property.value]) {
-                graphify(reference.stack[node.property.name || 
+            if (!reference.value.stack[node.property.name || 
+                    node.property.value]) graphify(reference.value, path.slice(0));
+            reference.value.visited = true;
+            if (reference.value.stack[node.property.name || node.property.value]) {
+                graphify(reference.value.stack[node.property.name || 
                     node.property.value], path.slice(0));
             }
         } else {
@@ -376,7 +389,7 @@ var visitor = {
         var reference = getReference(path[path.length-1], 
                 node.name, path.slice(0));
         if (reference) { 
-            graphify(reference, path.slice(0));
+            graphify(reference.value, path.slice(0));
         } else {
             // TODO: handle errors better.
             //console.log('reference not found: ' + node.name);
@@ -479,7 +492,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         }
     });
     
-    console.log(stringify(tree, '   ', ''));
+    //console.log(stringify(tree, '   ', ''));
     console.log('');
     //console.log(result.toString().trim()); // output result source.
     //console.log(result.chunks);
