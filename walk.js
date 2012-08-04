@@ -163,7 +163,7 @@ var getReference = function(node, name, path) {
 };
 
 var visit = function(node) {
-    if (!node) return;
+    if (!node || node.visited) return;
     node.visited = true;
 
     switch (node.type) {
@@ -524,7 +524,7 @@ var eliminate = exports.eliminate = function(fileContents) {
             visitor[node.type](node, path);
             return false;
         } else {
-            node.visited = true;
+            visit(node);
         }
         return true;
     });
