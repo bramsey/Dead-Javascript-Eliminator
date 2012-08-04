@@ -4,6 +4,17 @@ var _ = require('underscore'),
     result,
     tree;
 
+var grapher = function(node, path) {
+    if (node.visited) return false;
+    if (visitor[node.type]) {
+        visitor[node.type](node, path);
+    } else {
+        visit(node);
+        return true;
+    }
+    return false;
+};
+
 var stringify = function(node, tab, indent) {
     var output = '';
     for (var key in node) {
@@ -285,9 +296,9 @@ var visitor = {
     ExpressionStatement: function(node, path) {
         if (node.expression.type !== 'AssignmentExpression') {
             node.visited = true;
-            walk(node.expression, undefined, undefined, path.concat(node));
+            walk(node.expression, undefined, grapher, path.concat(node));
         } else {
-            walk(node.expression, undefined, undefined, path);
+            walk(node.expression, undefined, grapher, path);
         }
     },
     /*
@@ -393,7 +404,7 @@ var visitor = {
             propertyRef;
         if (objectRef) {
             // populate scope for object if the scope is empty.
-            if (!objectRef.value.scope[propKey]) walk(objectRef.value, undefined, undefined, path.slice(0));
+            if (!objectRef.value.scope[propKey]) walk(objectRef.value, undefined, grapher, path.slice(0));
             propertyRef = objectRef.value.scope[propKey];
             visit(objectRef.value);
             visit(objectRef.declaration);
@@ -402,7 +413,7 @@ var visitor = {
                 visit(propertyRef.value);
                 visit(propertyRef.declaration);
                 if (propertyRef.assignment) visit(propertyRef.assignment);
-                walk(propertyRef, undefined, undefined, path.slice(0));
+                walk(propertyRef, undefined, grapher, path.slice(0));
             }
         } else {
             // TODO: throw error instead of console log.
@@ -441,7 +452,7 @@ var visitor = {
             visit(reference.value);
             visit(reference.declaration);
             if (reference.assignment) visit(reference.assignment);
-            walk(reference.value, undefined, undefined, path.slice(0));
+            walk(reference.value, undefined, grapher, path.slice(0));
         } else {
             // TODO: handle errors better.
             //console.log('reference not found: ' + node.name);
@@ -471,35 +482,6 @@ var visitor = {
     */
 };
 
-// Turn the ast into a directed graph.
-// path: array representing previously visited nodes.
-var graphify = function(node, path) {
-    if (node.visited) return;
-
-    // Visit nodes based on type.
-    if (visitor[node.type]) {
-        visitor[node.type](node, path);
-    } else {
-        node.visited = true;
-
-        for(var key in node) {
-            if (key === 'parent') continue;
-
-            var child = node[key];
-            if (child instanceof Array) {
-                for (var i=0, l=child.length; i<l; i++) {
-                    if (child[i] && typeof child[i] === 'object' &&
-                            child[i].type) {
-                        graphify(child[i], undefined, undefined, path.concat(node));
-                    }
-                }
-            } else if (child && typeof child === 'object' && child.type) {
-                graphify(child, path.concat(node));
-            }
-        }
-    }
-};
-
 var eliminate = exports.eliminate = function(fileContents) {
 
     // TODO: write each method if that's all I use from underscore.
@@ -519,21 +501,14 @@ var eliminate = exports.eliminate = function(fileContents) {
     walk(tree);
 
     // Pass to mark nodes as visited.
-    walk(tree, undefined, function(node, path) {
-        if (visitor[node.type]) {
-            visitor[node.type](node, path);
-            return false;
-        } else {
-            visit(node);
-        }
-        return true;
-    });
+    walk(tree, undefined, grapher);
+
     /**
      * Pass to delete unused functions.
      * unvisited functions are assumed to be unused.
      */
     walk(tree, undefined, function(node) {
-        if (!node.type || node.visited) return;
+        if (!node.type || node.visited) return true;
 
         // check for types that should be deleted.
         switch(node.type) {
@@ -550,7 +525,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         return true;
     });
 
-    console.log(stringify(tree, '   ', ''));
+    //console.log(stringify(tree, '   ', ''));
     console.log('');
     //console.log(result.toString().trim()); // output result source.
     //console.log(result.chunks);
