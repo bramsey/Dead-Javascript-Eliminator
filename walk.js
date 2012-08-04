@@ -478,12 +478,6 @@ var graphify = function(node, path) {
     } else {
         node.visited = true;
 
-        // flags referenced function declarations as visited.
-        if (node.type === 'BlockStatement' && node.parent &&
-                node.parent.type === 'FunctionDeclaration') {
-            node.parent.visited = true;
-        }
-
         for(var key in node) {
             if (key === 'parent') continue;
 
