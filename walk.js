@@ -8,7 +8,7 @@ var stringify = function(node, tab, indent) {
     var output = '';
     for (var key in node) {
         if (key === 'parent' || key === 'source' || key === 'destroy') continue;
-    
+
         var child = node[key];
         if (child instanceof Array) {
             if (key === 'range') {
@@ -16,7 +16,7 @@ var stringify = function(node, tab, indent) {
             } else {
                 output += indent + key + ':\n';
                 for (var i=0, l=child.length; i<l; i++) {
-                    if (child[i] && typeof child[i] === 'object' && 
+                    if (child[i] && typeof child[i] === 'object' &&
                             child[i].type) {
                         output += stringify(child[i], tab, indent+tab);
                     }
@@ -25,8 +25,8 @@ var stringify = function(node, tab, indent) {
         } else if (child && typeof child === 'object') {
             output += indent + key + ':\n';
             output += stringify(child, tab, indent+tab);
-        } else if (child && typeof child === 'string' || 
-                            typeof child === 'number' || 
+        } else if (child && typeof child === 'string' ||
+                            typeof child === 'number' ||
                             typeof child === 'boolean') {
             output += indent;
             if (key === 'type') {
@@ -58,11 +58,11 @@ var insertHelpers = function(node, parent) {
     if (!node.range || node.parent) return;
 
     // reference to parent node.
-    node.parent = parent; 
+    node.parent = parent;
 
-    // initialize stacks
-    if (affectsScope(node.type)) node.stack = node.stack || {};
-    
+    // initialize scopes
+    if (affectsScope(node.type)) node.scope = node.scope || {};
+
     // returns the current source for the node.
     node.source = function() {
         return result.chunks.slice(
@@ -88,17 +88,16 @@ var walk = function(node, parent, action) {
 
     for (var key in node) {
         if (key === 'parent') continue;
-    
+
         var child = node[key];
         if (child instanceof Array) {
             for (var i=0, l=child.length; i<l; i++) {
-                if (child[i] && typeof child[i] === 'object' && 
+                if (child[i] && typeof child[i] === 'object' &&
                         child[i].type) {
                     walk(child[i], node, action);
                 }
             }
         } else if (child && typeof child === 'object' && child.type) {
-            insertHelpers(child, node);
             walk(child, node, action);
         }
     }
@@ -127,35 +126,35 @@ var removeDeclaration = function(node) {
     return;
 };
 
-// find the nearest stack by walking up the tree.
-var getStack = function(node, path) {
+// find the nearest scope by walking up the tree.
+var getScope = function(node, path) {
     if (!node) return;
-    return node.stack ? node.stack : getStack(path.pop(), path);
+    return node.scope ? node.scope : getScope(path.pop(), path);
 };
 
-// find the nearest stack with the specified reference.
-var getStackWithReference = function(node, ref, path) {
+// find the nearest scope with the specified reference.
+var getScopeWithReference = function(node, ref, path) {
     if (!node) return;
-        
+
     if (ref.type === 'MemberExpression') {
         var obj = getReference(node, ref.object.name, path.slice(0));
         obj.visited = true;// TODO: this belongs someplace else probably
-        return obj ? obj.stack : undefined;
-    } 
+        return obj ? obj.scope : undefined;
+    }
 
-    if (node.stack && node.stack[ref.name || ref.value]) {
+    if (node.scope && node.scope[ref.name || ref.value]) {
         node.visited = true;
-        return node.stack;
+        return node.scope;
     } else {
-        getStackWithReference(path.pop(), ref, path);
+        getScopeWithReference(path.pop(), ref, path);
     }
 };
 
-// find the specified reference in the scoped stack hierarchy.
+// find the specified reference in the scoped scope hierarchy.
 var getReference = function(node, name, path) {
     if (!node) return;
-    return (node.stack && node.stack[name]) ?
-        node.stack[name] :
+    return (node.scope && node.scope[name]) ?
+        node.scope[name] :
         getReference(path.pop(), name, path);
 };
 
@@ -256,17 +255,17 @@ var visitor = {
     */
     // Declarations
     FunctionDeclaration: function(node, path) {
-        var stack = getStack(path[path.length-1], path.slice(0));
-        stack[node.id.name] = {
+        var scope = getScope(path[path.length-1], path.slice(0));
+        scope[node.id.name] = {
             value: node.body,
             declaration: node
         }
         return;
     },
     VariableDeclaration: function(node, path) {
-        var stack = getStack(path[path.length-1], path.slice(0));
+        var scope = getScope(path[path.length-1], path.slice(0));
         _.each(node.declarations, function(declarator) {
-            stack[declarator.id.name] = {
+            scope[declarator.id.name] = {
                 value: declarator.init,
                 declaration: declarator
             };
@@ -295,9 +294,9 @@ var visitor = {
     },
     */
     ObjectExpression: function(node, path) {
-        var stack = node.stack;
+        var scope = node.scope;
         _.each(node.properties, function(property) {
-            stack[property.key.name || property.key.value] = {
+            scope[property.key.name || property.key.value] = {
                 value: property.value,
                 declaration: property
             };
@@ -324,7 +323,7 @@ var visitor = {
     */
     AssignmentExpression: function(node, path) {
         if (node.operator === '=') {
-            var stack, obj, declaration, leftKey;
+            var scope, obj, declaration, leftKey;
             if (node.left.property) {
                 leftKey = node.left.property.name ||
                           node.left.property.value;
@@ -335,7 +334,7 @@ var visitor = {
             if (node.left.type === 'MemberExpression') {
                 obj = getReference(path[path.length-1],
                         node.left.object.name, path.slice(0)).value;
-                stack = obj ? obj.stack : undefined; 
+                scope = obj ? obj.scope : undefined;
                 if (obj) {
                     declaration = _.find(obj.properties, function(property) {
                         var propKey;
@@ -344,13 +343,13 @@ var visitor = {
                     });
                 }
             } else {
-                stack = getStackWithReference(path[path.length-1], 
+                scope = getScopeWithReference(path[path.length-1],
                         node.left,
                         path.slice(0)) ||
-                        getStack(path[path.length-1], path.slice(0));
+                        getScope(path[path.length-1], path.slice(0));
                 declaration = getReference(path[path.length-1], leftKey, path.slice(0));
             }
-            stack[leftKey] = {
+            scope[leftKey] = {
                     value: node.right,
                     assignment: node.left,
                     declaration: declaration
@@ -383,21 +382,21 @@ var visitor = {
     },
     */
     MemberExpression: function(node, path) {
-        var reference = getReference(path[path.length-1], 
+        var reference = getReference(path[path.length-1],
                 node.object.name, path.slice(0)),
             propKey = node.property.name || node.property.value;
         if (reference) {
-            // populate stack for object if the stack is empty.
-            if (!reference.value.stack[node.property.name || 
+            // populate scope for object if the scope is empty.
+            if (!reference.value.scope[node.property.name ||
                     node.property.value]) graphify(reference.value, path.slice(0));
             visit(reference.value);
             visit(reference.declaration);
             if (reference.assignment) visit(reference.assignment);
-            if (reference.value.stack[propKey]) {
-                visit(reference.value.stack[propKey].value);
-                visit(reference.value.stack[propKey].declaration);
-                if (reference.value.stack[propKey].assignment) visit(reference.value.stack[propKey].assignment);
-                graphify(reference.value.stack[propKey], path.slice(0));
+            if (reference.value.scope[propKey]) {
+                visit(reference.value.scope[propKey].value);
+                visit(reference.value.scope[propKey].declaration);
+                if (reference.value.scope[propKey].assignment) visit(reference.value.scope[propKey].assignment);
+                graphify(reference.value.scope[propKey], path.slice(0));
             }
         } else {
             // TODO: throw error instead of console log.
@@ -430,9 +429,9 @@ var visitor = {
     },
     */
     Identifier: function(node, path) {
-        var reference = getReference(path[path.length-1], 
+        var reference = getReference(path[path.length-1],
                 node.name, path.slice(0));
-        if (reference) { 
+        if (reference) {
             visit(reference.value);
             visit(reference.declaration);
             if (reference.assignment) visit(reference.assignment);
@@ -467,10 +466,10 @@ var visitor = {
 };
 
 // Turn the ast into a directed graph.
-// path: array representing previously visited nodes.        
+// path: array representing previously visited nodes.
 var graphify = function(node, path) {
     if (node.visited) return;
-    
+
     // Visit nodes based on type.
     if (visitor[node.type]) {
         visitor[node.type](node, path);
@@ -485,11 +484,11 @@ var graphify = function(node, path) {
 
         for(var key in node) {
             if (key === 'parent') continue;
-            
+
             var child = node[key];
             if (child instanceof Array) {
                 for (var i=0, l=child.length; i<l; i++) {
-                    if (child[i] && typeof child[i] === 'object' && 
+                    if (child[i] && typeof child[i] === 'object' &&
                             child[i].type) {
                         graphify(child[i], path.concat(node));
                     }
@@ -502,7 +501,7 @@ var graphify = function(node, path) {
 };
 
 var eliminate = exports.eliminate = function(fileContents) {
-    
+
     // TODO: write each method if that's all I use from underscore.
 
     var file = fileContents || '';
@@ -516,12 +515,12 @@ var eliminate = exports.eliminate = function(fileContents) {
         inspect : function () { return result.toString() }
     };
 
-   // Pass to initialize helpers and stacks.
+   // Pass to initialize helpers and scopes.
     walk(tree);
-    
+
     // Pass to mark nodes as visited.
     graphify(tree, []);
-    
+
     /**
      * Pass to delete unused functions.
      * unvisited functions are assumed to be unused.
@@ -537,12 +536,13 @@ var eliminate = exports.eliminate = function(fileContents) {
             case 'AssignmentExpression':
             case 'VariableDeclaration':
             case 'VariableDeclarator':
+            case 'Property':
                 removeDeclaration(node);
                 break;
         }
     });
-    
-    console.log(stringify(tree, '   ', ''));
+
+    //console.log(stringify(tree, '   ', ''));
     console.log('');
     //console.log(result.toString().trim()); // output result source.
     //console.log(result.chunks);
