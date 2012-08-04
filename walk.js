@@ -82,9 +82,13 @@ var insertHelpers = function(node, parent) {
  * Generic walk function
  * @action: function to be applied to the node in order.
  */
-var walk = function(node, parent, action) {
+var walk = function(node, parent, action, path) {
+    var shouldWalk;
+    path = path || [];
     insertHelpers(node, parent);
-    if (action) action(node);
+
+    shouldWalk = action ? action(node, path) : true;
+    if (!shouldWalk) return;
 
     for (var key in node) {
         if (key === 'parent') continue;
@@ -94,11 +98,11 @@ var walk = function(node, parent, action) {
             for (var i=0, l=child.length; i<l; i++) {
                 if (child[i] && typeof child[i] === 'object' &&
                         child[i].type) {
-                    walk(child[i], node, action);
+                    walk(child[i], node, action, path.concat(node));
                 }
             }
         } else if (child && typeof child === 'object' && child.type) {
-            walk(child, node, action);
+            walk(child, node, action, path.concat(node));
         }
     }
 };
@@ -281,9 +285,9 @@ var visitor = {
     ExpressionStatement: function(node, path) {
         if (node.expression.type !== 'AssignmentExpression') {
             node.visited = true;
-            graphify(node.expression, path.concat(node));
+            walk(node.expression, undefined, undefined, path.concat(node));
         } else {
-            graphify(node.expression, path);
+            walk(node.expression, undefined, undefined, path);
         }
     },
     /*
@@ -389,7 +393,7 @@ var visitor = {
             propertyRef;
         if (objectRef) {
             // populate scope for object if the scope is empty.
-            if (!objectRef.value.scope[propKey]) graphify(objectRef.value, path.slice(0));
+            if (!objectRef.value.scope[propKey]) walk(objectRef.value, undefined, undefined, path.slice(0));
             propertyRef = objectRef.value.scope[propKey];
             visit(objectRef.value);
             visit(objectRef.declaration);
@@ -398,7 +402,7 @@ var visitor = {
                 visit(propertyRef.value);
                 visit(propertyRef.declaration);
                 if (propertyRef.assignment) visit(propertyRef.assignment);
-                graphify(propertyRef, path.slice(0));
+                walk(propertyRef, undefined, undefined, path.slice(0));
             }
         } else {
             // TODO: throw error instead of console log.
@@ -437,7 +441,7 @@ var visitor = {
             visit(reference.value);
             visit(reference.declaration);
             if (reference.assignment) visit(reference.assignment);
-            graphify(reference.value, path.slice(0));
+            walk(reference.value, undefined, undefined, path.slice(0));
         } else {
             // TODO: handle errors better.
             //console.log('reference not found: ' + node.name);
@@ -486,7 +490,7 @@ var graphify = function(node, path) {
                 for (var i=0, l=child.length; i<l; i++) {
                     if (child[i] && typeof child[i] === 'object' &&
                             child[i].type) {
-                        graphify(child[i], path.concat(node));
+                        graphify(child[i], undefined, undefined, path.concat(node));
                     }
                 }
             } else if (child && typeof child === 'object' && child.type) {
@@ -515,8 +519,15 @@ var eliminate = exports.eliminate = function(fileContents) {
     walk(tree);
 
     // Pass to mark nodes as visited.
-    graphify(tree, []);
-
+    walk(tree, undefined, function(node, path) {
+        if (visitor[node.type]) {
+            visitor[node.type](node, path);
+            return false;
+        } else {
+            node.visited = true;
+        }
+        return true;
+    });
     /**
      * Pass to delete unused functions.
      * unvisited functions are assumed to be unused.
@@ -536,9 +547,10 @@ var eliminate = exports.eliminate = function(fileContents) {
                 removeDeclaration(node);
                 break;
         }
+        return true;
     });
 
-    //console.log(stringify(tree, '   ', ''));
+    console.log(stringify(tree, '   ', ''));
     console.log('');
     //console.log(result.toString().trim()); // output result source.
     //console.log(result.chunks);
