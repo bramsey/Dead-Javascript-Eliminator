@@ -172,6 +172,7 @@ var visit = function(node) {
             break;
     }
 };
+
 var visitor = {
     /*
     Program: function(node) {
@@ -382,21 +383,22 @@ var visitor = {
     },
     */
     MemberExpression: function(node, path) {
-        var reference = getReference(path[path.length-1],
+        var objectRef = getReference(path[path.length-1],
                 node.object.name, path.slice(0)),
-            propKey = node.property.name || node.property.value;
-        if (reference) {
+            propKey = node.property.name || node.property.value,
+            propertyRef;
+        if (objectRef) {
             // populate scope for object if the scope is empty.
-            if (!reference.value.scope[node.property.name ||
-                    node.property.value]) graphify(reference.value, path.slice(0));
-            visit(reference.value);
-            visit(reference.declaration);
-            if (reference.assignment) visit(reference.assignment);
-            if (reference.value.scope[propKey]) {
-                visit(reference.value.scope[propKey].value);
-                visit(reference.value.scope[propKey].declaration);
-                if (reference.value.scope[propKey].assignment) visit(reference.value.scope[propKey].assignment);
-                graphify(reference.value.scope[propKey], path.slice(0));
+            if (!objectRef.value.scope[propKey]) graphify(objectRef.value, path.slice(0));
+            propertyRef = objectRef.value.scope[propKey];
+            visit(objectRef.value);
+            visit(objectRef.declaration);
+            if (objectRef.assignment) visit(objectRef.assignment);
+            if (propertyRef) {
+                visit(propertyRef.value);
+                visit(propertyRef.declaration);
+                if (propertyRef.assignment) visit(propertyRef.assignment);
+                graphify(propertyRef, path.slice(0));
             }
         } else {
             // TODO: throw error instead of console log.
