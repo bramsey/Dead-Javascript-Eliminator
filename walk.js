@@ -20,8 +20,20 @@ var stringify = function(node, tab, indent) {
     for (var key in node) {
         if (key === 'source' || key === 'destroy') continue;
 
+
         var child = node[key];
-        if (child instanceof Array) {
+        if (key === 'scope') {
+            if (child.printed) {
+                return output;
+            } else {
+                child.printed = true;
+            }
+        }
+        if (key === 'parent') {
+            output += indent + key + ': ' + 
+                (child ? child.type : undefined) + '\n';
+            continue;
+        } else if (child instanceof Array) {
             if (key === 'range') {
                 output += indent + key + ': ' + child[0] + ' - ' + child[1] + '\n';
             } else {
@@ -33,9 +45,6 @@ var stringify = function(node, tab, indent) {
                     }
                 }
             }
-        } else if (key === 'parent') {
-            output += indent + key + ': ' + 
-                (child ? child.type : undefined) + '\n';
         } else if (child && typeof child === 'object') {
             output += indent + key + ':\n';
             output += stringify(child, tab, indent+tab);
@@ -49,6 +58,8 @@ var stringify = function(node, tab, indent) {
             } else {
                 output += key + ': ' + child + '\n';
             }
+        } else {
+            return output;
         }
     }
     return output;
@@ -304,7 +315,7 @@ var visitor = {
     */
     // Declarations
     FunctionDeclaration: function(node) {
-        var scope = getScope(node);
+        var scope = getScope(node.parent);
         scope[node.id.name] = {
             value: node.body,
             declaration: node
@@ -582,7 +593,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         return true;
     });
 
-    //console.log(stringify(tree, '   ', ''));
+    console.log(stringify(tree, '   ', ''));
     console.log('');
     //console.log(result.toString().trim()); // output result source.
     //console.log(result.chunks);
