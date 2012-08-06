@@ -142,17 +142,17 @@ var removeDeclaration = function(node) {
 };
 
 // find the nearest scope by walking up the tree.
-var getScope = function(node, path) {
+var getScope = function(node) {
     if (!node) return;
-    return node.scope ? node.scope : getScope(node.parent, path);
+    return node.scope ? node.scope : getScope(node.parent);
 };
 
 // find the nearest scope with the specified reference.
-var getScopeWithReference = function(node, ref, path) {
+var getScopeWithReference = function(node, ref) {
     if (!node) return;
 
     if (ref.type === 'MemberExpression') {
-        var obj = getReference(node, ref.object.name, _.clone(path));
+        var obj = getReference(node, ref.object.name);
         obj.visited = true;// TODO: this belongs someplace else probably
         return obj ? obj.scope : undefined;
     }
@@ -161,12 +161,12 @@ var getScopeWithReference = function(node, ref, path) {
         node.visited = true;
         return node.scope;
     } else {
-        getScopeWithReference(node.parent, ref, path);
+        getScopeWithReference(node.parent, ref);
     }
 };
 
 // find the specified reference in the scoped scope hierarchy.
-var getReference = function(node, ref, path) {
+var getReference = function(node, ref) {
     var name;
     if (!node) return;
 
@@ -177,18 +177,17 @@ var getReference = function(node, ref, path) {
     } else if (ref.type === 'MemberExpression') {
         // TODO: refactor this since logic is similar to walking
         // a member expression.
-        var objectRef = getReference(_.last(path),
-                ref.object.name, _.clone(path)),
+        var objectRef = getReference(node, ref.object.name),
             propKey = ref.property.name || ref.property.value,
             propertyRef;
         if (objectRef) {
             // populate scope for object if the scope is empty.
             if (!objectRef.value.scope[propKey]) {
-                walk(objectRef.value, undefined, grapher, _.clone(path));
+                walk(objectRef.value, undefined, grapher, [node]);
             }
             propertyRef = objectRef.value.scope[propKey];
             return propertyRef ? 
-                getReference(_.last(path), propertyRef, _.clone(path)) :
+                getReference(node, propertyRef) :
                 undefined;
         } else {
             // TODO: throw error instead of console log.
@@ -201,7 +200,7 @@ var getReference = function(node, ref, path) {
 
     return (node.scope && node.scope[name]) ?
         node.scope[name] :
-        getReference(node.parent, name, path);
+        getReference(node.parent, name);
 };
 
 var visit = function(node) {
