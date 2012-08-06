@@ -144,7 +144,7 @@ var removeDeclaration = function(node) {
 // find the nearest scope by walking up the tree.
 var getScope = function(node, path) {
     if (!node) return;
-    return node.scope ? node.scope : getScope(path.pop(), path);
+    return node.scope ? node.scope : getScope(node.parent, path);
 };
 
 // find the nearest scope with the specified reference.
@@ -161,7 +161,7 @@ var getScopeWithReference = function(node, ref, path) {
         node.visited = true;
         return node.scope;
     } else {
-        getScopeWithReference(path.pop(), ref, path);
+        getScopeWithReference(node.parent, ref, path);
     }
 };
 
@@ -201,7 +201,7 @@ var getReference = function(node, ref, path) {
 
     return (node.scope && node.scope[name]) ?
         node.scope[name] :
-        getReference(path.pop(), name, path);
+        getReference(node.parent, name, path);
 };
 
 var visit = function(node) {
