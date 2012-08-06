@@ -1,7 +1,7 @@
-var a;
+var c=1, a, d=1;
 
 function b() {
-    console.log('hi');
+    console.log(c + d);
 }
 
 a = b;

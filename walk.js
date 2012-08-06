@@ -121,6 +121,7 @@ var walk = function(node, parent, action, path) {
 // walk up the tree until the closest declaration is found then remove it.
 // TODO: refactor to use a deletor similar to visitor pattern.
 var removeDeclaration = function(node) {
+    if (node.visited) return;
     if (node.type === 'VariableDeclarator') {
         if (node.parent.declarations.length === 1) {
             console.log('deleted: ' + node.id.name);
@@ -132,10 +133,9 @@ var removeDeclaration = function(node) {
     } else if (node.type === 'AssignmentExpression') {
         console.log('deleted: ' + node.left.name);
         node.parent.destroy();
-    } else if (node.type === 'FunctionDeclaration') {
-        console.log('deleted: ' + node.id.name);
-        node.destroy();
     } else {
+        console.log('deleted: ' + node.type);
+        node.destroy();
         if (node.parent) removeDeclaration(node.parent);
     }
     return;
@@ -175,6 +175,7 @@ var getReference = function(node, name, path) {
 
 var visit = function(node) {
     if (!node || node.visited) return;
+    //console.log('visiting: ' + node.type + ' -> ' + node.name + '\n');
     node.visited = true;
 
     switch (node.type) {
@@ -295,10 +296,10 @@ var visitor = {
     */
     ExpressionStatement: function(node, path) {
         if (node.expression.type !== 'AssignmentExpression') {
-            node.visited = true;
+            visit(node);
             walk(node.expression, undefined, grapher, path.concat(node));
         } else {
-            walk(node.expression, undefined, grapher, path);
+            walk(node.expression, undefined, grapher, path.concat(node));
         }
     },
     /*
@@ -363,7 +364,8 @@ var visitor = {
                         node.left,
                         path.slice(0)) ||
                         getScope(path[path.length-1], path.slice(0));
-                declaration = getReference(path[path.length-1], leftKey, path.slice(0));
+                declaration = getReference(path[path.length-1], leftKey, 
+                        path.slice(0)).declaration;
             }
             scope[leftKey] = {
                     value: node.right,
@@ -449,10 +451,11 @@ var visitor = {
         var reference = getReference(path[path.length-1],
                 node.name, path.slice(0));
         if (reference) {
+            console.log(reference.value);
+            walk(reference.value, undefined, grapher, path.slice(0));
             visit(reference.value);
             visit(reference.declaration);
             if (reference.assignment) visit(reference.assignment);
-            walk(reference.value, undefined, grapher, path.slice(0));
         } else {
             // TODO: handle errors better.
             //console.log('reference not found: ' + node.name);
