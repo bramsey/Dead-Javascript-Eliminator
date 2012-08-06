@@ -166,8 +166,39 @@ var getScopeWithReference = function(node, ref, path) {
 };
 
 // find the specified reference in the scoped scope hierarchy.
-var getReference = function(node, name, path) {
+var getReference = function(node, ref, path) {
+    var name;
     if (!node) return;
+
+    if (!ref.type) {
+        name = ref;
+    } else if (ref.type === 'Identifier') {
+        name = ref.name;
+    } else if (ref.type === 'MemberExpression') {
+        // TODO: refactor this since logic is similar to walking
+        // a member expression.
+        var objectRef = getReference(_.last(path),
+                ref.object.name, _.clone(path)),
+            propKey = ref.property.name || ref.property.value,
+            propertyRef;
+        if (objectRef) {
+            // populate scope for object if the scope is empty.
+            if (!objectRef.value.scope[propKey]) {
+                walk(objectRef.value, undefined, grapher, _.clone(path));
+            }
+            propertyRef = objectRef.value.scope[propKey];
+            return propertyRef ? 
+                getReference(_.last(path), propertyRef, _.clone(path)) :
+                undefined;
+        } else {
+            // TODO: throw error instead of console log.
+            //console.log('reference not found: ' + node.name);
+            return; // Only gets here if a reference wasn't found.
+        }
+    } else {
+        return ref; // if ref isn't actually a reference to something else
+    }
+
     return (node.scope && node.scope[name]) ?
         node.scope[name] :
         getReference(path.pop(), name, path);
@@ -396,11 +427,32 @@ var visitor = {
             walk(node.arguments[i]);
         }
     },
-    CallExpression: function(node, path) {
-        var calledFunction = getReference(_.last(path), node.callee, 
-                _.clone(path));
-    },
     */
+    CallExpression: function(node, path) {
+        var callee = getReference(_.last(path), node.callee, _.clone(path)),
+            params;
+
+        if (callee && callee.value) {
+            callee = callee.value.params ? 
+                callee.value : 
+                callee.value.parent;
+            params = callee.params;
+        }
+        if (params) {
+            for (var i=0, l=params.length; i < l; i++) {
+                callee.scope[params[i].name] = node['arguments'][i] ?
+                    {
+                        value: node['arguments'][i]
+                    } : undefined;
+            }
+        }
+        
+        visit(node);
+        walk(node.callee, undefined, grapher, path.concat(node));
+        _.each(node.arguments, function(argument) {
+            walk(argument, undefined, grapher, path.concat(node));
+        });
+    },
     MemberExpression: function(node, path) {
         var objectRef = getReference(_.last(path),
                 node.object.name, _.clone(path)),
@@ -411,11 +463,11 @@ var visitor = {
             if (!objectRef.value.scope[propKey]) walk(objectRef.value, undefined, grapher, _.clone(path));
             propertyRef = objectRef.value.scope[propKey];
             visit(objectRef.value);
-            visit(objectRef.declaration);
+            if (objectRef.declaration) visit(objectRef.declaration);
             if (objectRef.assignment) visit(objectRef.assignment);
             if (propertyRef) {
                 visit(propertyRef.value);
-                visit(propertyRef.declaration);
+                if (propertyRef.declaration) visit(propertyRef.declaration);
                 if (propertyRef.assignment) visit(propertyRef.assignment);
                 walk(propertyRef, undefined, grapher, _.clone(path));
             }
@@ -453,7 +505,6 @@ var visitor = {
         var reference = getReference(_.last(path),
                 node.name, _.clone(path));
         if (reference) {
-            console.log(reference.value);
             walk(reference.value, undefined, grapher, _.clone(path));
             visit(reference.value);
             visit(reference.declaration);
@@ -530,7 +581,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         return true;
     });
 
-    //console.log(stringify(tree, '   ', ''));
+    console.log(stringify(tree, '   ', ''));
     console.log('');
     //console.log(result.toString().trim()); // output result source.
     //console.log(result.chunks);
