@@ -4,10 +4,10 @@ var _ = require('underscore'),
     result,
     tree;
 
-var grapher = function(node, path) {
+var grapher = function(node) {
     if (node.visited) return false;
     if (visitor[node.type]) {
-        visitor[node.type](node, path);
+        visitor[node.type](node);
     } else {
         visit(node);
         return true;
@@ -96,12 +96,11 @@ var insertHelpers = function(node, parent) {
  * Generic walk function
  * @action: function to be applied to the node in order.
  */
-var walk = function(node, parent, action, path) {
+var walk = function(node, action, parent) {
     var shouldWalk;
-    path = path || [];
     insertHelpers(node, parent);
 
-    shouldWalk = action ? action(node, path) : true;
+    shouldWalk = action ? action(node) : true;
     if (!shouldWalk) return;
 
     for (var key in node) {
@@ -112,11 +111,11 @@ var walk = function(node, parent, action, path) {
             for (var i=0, l=child.length; i<l; i++) {
                 if (child[i] && typeof child[i] === 'object' &&
                         child[i].type) {
-                    walk(child[i], node, action, path.concat(node));
+                    walk(child[i], action, node);
                 }
             }
         } else if (child && typeof child === 'object' && child.type) {
-            walk(child, node, action, path.concat(node));
+            walk(child, action, node);
         }
     }
 };
@@ -186,7 +185,7 @@ var getReference = function(node, ref) {
         if (objectRef) {
             // populate scope for object if the scope is empty.
             if (!objectRef.value.scope[propKey]) {
-                walk(objectRef.value, undefined, grapher, [node]);
+                walk(objectRef.value, grapher);
             }
             propertyRef = objectRef.value.scope[propKey];
             return propertyRef ? 
@@ -304,16 +303,16 @@ var visitor = {
     DebuggerStatement: function(node) { },
     */
     // Declarations
-    FunctionDeclaration: function(node, path) {
-        var scope = getScope(_.last(path), _.clone(path));
+    FunctionDeclaration: function(node) {
+        var scope = getScope(node);
         scope[node.id.name] = {
             value: node.body,
             declaration: node
         }
         return;
     },
-    VariableDeclaration: function(node, path) {
-        var scope = getScope(_.last(path), _.clone(path));
+    VariableDeclaration: function(node) {
+        var scope = getScope(node);
         _.each(node.declarations, function(declarator) {
             scope[declarator.id.name] = {
                 value: declarator.init,
@@ -323,27 +322,27 @@ var visitor = {
         return;
     },
     /*
-    VariableDeclarator: function(node, path) {
+    VariableDeclarator: function(node) {
     },
     // Expressions
     */
-    ExpressionStatement: function(node, path) {
+    ExpressionStatement: function(node) {
         if (node.expression.type !== 'AssignmentExpression') {
             visit(node);
-            walk(node.expression, undefined, grapher, path.concat(node));
+            walk(node.expression, grapher);
         } else {
-            walk(node.expression, undefined, grapher, path.concat(node));
+            walk(node.expression, grapher);
         }
     },
     /*
-    ThisExpression: function(node, path) { },
-    ArrayExpression: function(node, path) {
+    ThisExpression: function(node) { },
+    ArrayExpression: function(node) {
         for(var i=0, l=node.elements.length; i<l; i++) {
             walk(node.elements[i]);
         }
     },
     */
-    ObjectExpression: function(node, path) {
+    ObjectExpression: function(node) {
         var scope = node.scope;
         _.each(node.properties, function(property) {
             scope[property.key.name || property.key.value] = {
@@ -353,25 +352,25 @@ var visitor = {
         });
     },
     /*
-    FunctionExpression: function(node, path) {
+    FunctionExpression: function(node) {
     },
-    SequenceExpression: function(node, path) {
+    SequenceExpression: function(node) {
         for(var i=0, l=node.expressions.length; i < l; i++) {
             walk(node.expressions[i]);
         }
     },
-    UnaryExpression: function(node, path) {
+    UnaryExpression: function(node) {
         // TODO: do something with operator
         walk(node.expression);
     },
     // CONTINUE HERE
-    BinaryExpression: function(node, path) {
+    BinaryExpression: function(node) {
         // TODO: do something with operator
         walk(node.left);
         walk(node.right);
     },
     */
-    AssignmentExpression: function(node, path) {
+    AssignmentExpression: function(node) {
         if (node.operator === '=') {
             var scope, obj, declaration, leftKey;
             if (node.left.property) {
@@ -382,8 +381,8 @@ var visitor = {
                           node.left.value;
             }
             if (node.left.type === 'MemberExpression') {
-                obj = getReference(_.last(path),
-                        node.left.object.name, _.clone(path)).value;
+                obj = getReference(node,
+                        node.left.object.name).value;
                 scope = obj ? obj.scope : undefined;
                 if (obj) {
                     declaration = _.find(obj.properties, function(property) {
@@ -393,12 +392,10 @@ var visitor = {
                     });
                 }
             } else {
-                scope = getScopeWithReference(_.last(path),
-                        node.left,
-                        _.clone(path)) ||
-                        getScope(_.last(path), _.clone(path));
-                declaration = getReference(_.last(path), leftKey, 
-                        _.clone(path)).declaration;
+                scope = getScopeWithReference(node,
+                        node.left) ||
+                        getScope(node);
+                declaration = getReference(node, leftKey).declaration;
             }
             scope[leftKey] = {
                     value: node.right,
@@ -408,30 +405,30 @@ var visitor = {
         }
     },
     /*
-    UpdateExpression: function(node, path) {
+    UpdateExpression: function(node) {
         // QUESTION: do what with prefix boolean?
         // TODO: do something with operator
         walk(node.argument);
     },
-    LogicalExpression: function(node, path) {
+    LogicalExpression: function(node) {
         // TODO: do something with operator
         walk(node.left);
         walk(node.right);
     },
-    ConditionalExpression: function(node, path) {
+    ConditionalExpression: function(node) {
         walk(node.test);
         walk(node.alternate);
         walk(node.consequent);
     },
-    NewExpression: function(node, path) {
+    NewExpression: function(node) {
         walk(node.callee);
         for(var i=0, l=node.arguments.length; i<l; i++) {
             walk(node.arguments[i]);
         }
     },
     */
-    CallExpression: function(node, path) {
-        var callee = getReference(_.last(path), node.callee, _.clone(path)),
+    CallExpression: function(node) {
+        var callee = getReference(node, node.callee),
             params;
 
         if (callee && callee.value) {
@@ -450,19 +447,21 @@ var visitor = {
         }
         
         visit(node);
-        walk(node.callee, undefined, grapher, path.concat(node));
+        walk(node.callee, grapher);
         _.each(node.arguments, function(argument) {
-            walk(argument, undefined, grapher, path.concat(node));
+            walk(argument, grapher);
         });
     },
-    MemberExpression: function(node, path) {
-        var objectRef = getReference(_.last(path),
-                node.object.name, _.clone(path)),
+    MemberExpression: function(node) {
+        var objectRef = getReference(node,
+                node.object.name),
             propKey = node.property.name || node.property.value,
             propertyRef;
         if (objectRef) {
             // populate scope for object if the scope is empty.
-            if (!objectRef.value.scope[propKey]) walk(objectRef.value, undefined, grapher, _.clone(path));
+            if (!objectRef.value.scope[propKey]) {
+                walk(objectRef.value, grapher);
+            }
             propertyRef = objectRef.value.scope[propKey];
             visit(objectRef.value);
             if (objectRef.declaration) visit(objectRef.declaration);
@@ -471,7 +470,7 @@ var visitor = {
                 visit(propertyRef.value);
                 if (propertyRef.declaration) visit(propertyRef.declaration);
                 if (propertyRef.assignment) visit(propertyRef.assignment);
-                walk(propertyRef, undefined, grapher, _.clone(path));
+                walk(propertyRef, grapher);
             }
         } else {
             // TODO: throw error instead of console log.
@@ -485,29 +484,29 @@ var visitor = {
 
     // Clauses
     /*
-    SwitchCase: function(node, path) {
+    SwitchCase: function(node) {
         walk(node.test);
         for(var i=0, l=node.consequent.length; i<l; i++) {
             walk(node.consequent[i]);
         }
     },
-    CatchClause: function(node, path) {
+    CatchClause: function(node) {
         walk(node.param);
         walk(node.body);
     },
 
     // Miscelaneous
-    Property: function(node, path) {
+    Property: function(node) {
         // QUESTION: do what with kind?
         walk(node.key);
         walk(node.value);
     },
     */
-    Identifier: function(node, path) {
-        var reference = getReference(_.last(path),
-                node.name, _.clone(path));
+    Identifier: function(node) {
+        var reference = getReference(node,
+                node.name);
         if (reference) {
-            walk(reference.value, undefined, grapher, _.clone(path));
+            walk(reference.value, grapher);
             visit(reference.value);
             visit(reference.declaration);
             if (reference.assignment) visit(reference.assignment);
@@ -518,23 +517,23 @@ var visitor = {
         }
     }
     /*
-    Literal: function(node, path) {
+    Literal: function(node) {
         // TODO: assign value to something.
         // access with: node.value
     },
-    UnaryOperator: function(node, path) {
+    UnaryOperator: function(node) {
         walk(node.token);
     },
-    BinaryOperator: function(node, path) {
+    BinaryOperator: function(node) {
         walk(node.token);
     },
-    LogicalOperator: function(node, path) {
+    LogicalOperator: function(node) {
         walk(node.token);
     },
-    AssignmentOperator: function(node, path) {
+    AssignmentOperator: function(node) {
         walk(node.token);
     },
-    UpdateOperator: function(node, path) {
+    UpdateOperator: function(node) {
         walk(node.token);
     }
     */
@@ -559,13 +558,13 @@ var eliminate = exports.eliminate = function(fileContents) {
     walk(tree);
 
     // Pass to mark nodes as visited.
-    walk(tree, undefined, grapher);
+    walk(tree, grapher);
 
     /**
      * Pass to delete unused functions.
      * unvisited functions are assumed to be unused.
      */
-    walk(tree, undefined, function(node) {
+    walk(tree, function(node) {
         if (!node.type || node.visited) return true;
 
         // check for types that should be deleted.
@@ -583,7 +582,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         return true;
     });
 
-    console.log(stringify(tree, '   ', ''));
+    //console.log(stringify(tree, '   ', ''));
     console.log('');
     //console.log(result.toString().trim()); // output result source.
     //console.log(result.chunks);
