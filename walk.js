@@ -18,7 +18,7 @@ var grapher = function(node, path) {
 var stringify = function(node, tab, indent) {
     var output = '';
     for (var key in node) {
-        if (key === 'parent' || key === 'source' || key === 'destroy') continue;
+        if (key === 'source' || key === 'destroy') continue;
 
         var child = node[key];
         if (child instanceof Array) {
@@ -33,6 +33,9 @@ var stringify = function(node, tab, indent) {
                     }
                 }
             }
+        } else if (key === 'parent') {
+            output += indent + key + ': ' + 
+                (child ? child.type : undefined) + '\n';
         } else if (child && typeof child === 'object') {
             output += indent + key + ':\n';
             output += stringify(child, tab, indent+tab);
