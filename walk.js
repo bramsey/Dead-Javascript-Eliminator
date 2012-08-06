@@ -152,7 +152,7 @@ var getScopeWithReference = function(node, ref, path) {
     if (!node) return;
 
     if (ref.type === 'MemberExpression') {
-        var obj = getReference(node, ref.object.name, path.slice(0));
+        var obj = getReference(node, ref.object.name, _.clone(path));
         obj.visited = true;// TODO: this belongs someplace else probably
         return obj ? obj.scope : undefined;
     }
@@ -272,7 +272,7 @@ var visitor = {
     */
     // Declarations
     FunctionDeclaration: function(node, path) {
-        var scope = getScope(path[path.length-1], path.slice(0));
+        var scope = getScope(_.last(path), _.clone(path));
         scope[node.id.name] = {
             value: node.body,
             declaration: node
@@ -280,7 +280,7 @@ var visitor = {
         return;
     },
     VariableDeclaration: function(node, path) {
-        var scope = getScope(path[path.length-1], path.slice(0));
+        var scope = getScope(_.last(path), _.clone(path));
         _.each(node.declarations, function(declarator) {
             scope[declarator.id.name] = {
                 value: declarator.init,
@@ -349,8 +349,8 @@ var visitor = {
                           node.left.value;
             }
             if (node.left.type === 'MemberExpression') {
-                obj = getReference(path[path.length-1],
-                        node.left.object.name, path.slice(0)).value;
+                obj = getReference(_.last(path),
+                        node.left.object.name, _.clone(path)).value;
                 scope = obj ? obj.scope : undefined;
                 if (obj) {
                     declaration = _.find(obj.properties, function(property) {
@@ -360,12 +360,12 @@ var visitor = {
                     });
                 }
             } else {
-                scope = getScopeWithReference(path[path.length-1],
+                scope = getScopeWithReference(_.last(path),
                         node.left,
-                        path.slice(0)) ||
-                        getScope(path[path.length-1], path.slice(0));
-                declaration = getReference(path[path.length-1], leftKey, 
-                        path.slice(0)).declaration;
+                        _.clone(path)) ||
+                        getScope(_.last(path), _.clone(path));
+                declaration = getReference(_.last(path), leftKey, 
+                        _.clone(path)).declaration;
             }
             scope[leftKey] = {
                     value: node.right,
@@ -397,16 +397,18 @@ var visitor = {
         }
     },
     CallExpression: function(node, path) {
+        var calledFunction = getReference(_.last(path), node.callee, 
+                _.clone(path));
     },
     */
     MemberExpression: function(node, path) {
-        var objectRef = getReference(path[path.length-1],
-                node.object.name, path.slice(0)),
+        var objectRef = getReference(_.last(path),
+                node.object.name, _.clone(path)),
             propKey = node.property.name || node.property.value,
             propertyRef;
         if (objectRef) {
             // populate scope for object if the scope is empty.
-            if (!objectRef.value.scope[propKey]) walk(objectRef.value, undefined, grapher, path.slice(0));
+            if (!objectRef.value.scope[propKey]) walk(objectRef.value, undefined, grapher, _.clone(path));
             propertyRef = objectRef.value.scope[propKey];
             visit(objectRef.value);
             visit(objectRef.declaration);
@@ -415,7 +417,7 @@ var visitor = {
                 visit(propertyRef.value);
                 visit(propertyRef.declaration);
                 if (propertyRef.assignment) visit(propertyRef.assignment);
-                walk(propertyRef, undefined, grapher, path.slice(0));
+                walk(propertyRef, undefined, grapher, _.clone(path));
             }
         } else {
             // TODO: throw error instead of console log.
@@ -448,11 +450,11 @@ var visitor = {
     },
     */
     Identifier: function(node, path) {
-        var reference = getReference(path[path.length-1],
-                node.name, path.slice(0));
+        var reference = getReference(_.last(path),
+                node.name, _.clone(path));
         if (reference) {
             console.log(reference.value);
-            walk(reference.value, undefined, grapher, path.slice(0));
+            walk(reference.value, undefined, grapher, _.clone(path));
             visit(reference.value);
             visit(reference.declaration);
             if (reference.assignment) visit(reference.assignment);
