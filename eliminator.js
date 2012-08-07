@@ -211,10 +211,9 @@ var getScopeWithReference = function(node, ref) {
     }
 
     if (node.scope && node.scope[ref.name || ref.value]) {
-        node.visited = true;
         return node.scope;
     } else {
-        getScopeWithReference(node.parent, ref);
+        return getScopeWithReference(node.parent, ref);
     }
 };
 

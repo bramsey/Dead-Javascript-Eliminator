@@ -1,9 +1,10 @@
 var obj = {
+    a: 1,
     one: function() {
         return 1;
     },
     two: function() {
-        return 2;
+        return a;
     }
 };
 
