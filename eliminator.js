@@ -169,6 +169,12 @@ var cleanupAround = function(range) {
             result.chunks[start] = '';
         }
     } else {
+        if (leftBound === '\n') {
+            // delete left to beginning of line
+            for(;start > 0 && isCleanable(result.chunks[start]); start--) {
+                result.chunks[start] = '';
+            }
+        }
         // delete right over comma
         for(;end < lastIndex && isCleanable(result.chunks[end]); end++) {
             result.chunks[end] = '';
@@ -177,44 +183,15 @@ var cleanupAround = function(range) {
 };
 
 // walk up the tree until the closest declaration is found then remove it.
-// TODO: refactor to use a deletor similar to visitor pattern.
-var removeDeclaration = function(node) {
+var removeNode = function(node) {
     if (node.visited) return;
-    if (node.type === 'VariableDeclarator') {
-        if (node.parent.declarations.length === 1) {
-            node.parent.destroy(); // remove parent if only declarator.
-        } else {
-            if (node.parent.visited) {
-                cleanupAround(node.range);
-                node.destroy();
-            } else {
-                removeDeclaration(node.parent);
-            }
-        }
-    } else if (node.parent.type === 'VariableDeclarator') {
-        if (node.parent.visited) {
-            cleanupAround(node.range);
-            node.destroy();
-        }
-    } else if (node.type === 'Property') {
-        if (node.parent.properties.length === 1) {
-            node.destroy();
-            removeDeclaration(node.parent);
-        } else {
-            if (node.parent.visited) {
-                cleanupAround(node.range);
-                node.destroy();
-            } else {
-                removeDeclaration(node.parent);
-            }
-        }
-    } else if (node.type === 'AssignmentExpression') {
-        node.parent.destroy();
-    } else {
+
+    if (node.parent.visited) {
+        cleanupAround(node.range);
         node.destroy();
-        if (node.parent) removeDeclaration(node.parent);
+    } else {
+        removeNode(node.parent);
     }
-    return;
 };
 
 // find the nearest scope by walking up the tree.
@@ -474,7 +451,7 @@ var eliminate = exports.eliminate = function(fileContents) {
             case 'VariableDeclaration':
             case 'VariableDeclarator':
             case 'Property':
-                removeDeclaration(node);
+                removeNode(node);
                 break;
         }
         return true;
