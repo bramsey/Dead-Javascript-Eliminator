@@ -242,7 +242,6 @@ var getReference = function(node, ref) {
                 getReference(node, propertyRef) :
                 undefined;
         } else {
-            // TODO: throw error instead of console log.
             return; // Only gets here if a reference wasn't found.
         }
     } else {
@@ -333,10 +332,11 @@ var visitor = {
                     });
                 }
             } else {
-                scope = getScopeWithReference(node,
-                        node.left) ||
-                        getScope(node);
-                declaration = getReference(node, leftKey).declaration;
+                scope = getScopeWithReference(node, node.left) || 
+                    getScope(tree);
+                declaration = scope[leftKey] ? 
+                    getReference(node, leftKey).declaration :
+                    undefined;
             }
             scope[leftKey] = {
                     value: node.right,
@@ -392,7 +392,6 @@ var visitor = {
                 walk(propertyRef.value, grapher);
             }
         } else {
-            // TODO: throw error instead of console log.
             return; // Only gets here if a reference wasn't found.
         }
     },
@@ -403,7 +402,7 @@ var visitor = {
         if (reference) {
             walk(reference.value, grapher);
             visit(reference.value);
-            visit(reference.declaration);
+            if (reference.declaration) visit(reference.declaration);
             if (reference.assignment) visit(reference.assignment);
         } else {
             // TODO: handle errors better.
