@@ -1,4 +1,5 @@
 var obj = {
+
     two: function() {
         return 2;
     }

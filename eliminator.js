@@ -196,6 +196,18 @@ var removeDeclaration = function(node) {
             cleanupAround(node.range);
             node.destroy();
         }
+    } else if (node.type === 'Property') {
+        if (node.parent.properties.length === 1) {
+            node.destroy();
+            removeDeclaration(node.parent);
+        } else {
+            if (node.parent.visited) {
+                cleanupAround(node.range);
+                node.destroy();
+            } else {
+                removeDeclaration(node.parent);
+            }
+        }
     } else if (node.type === 'AssignmentExpression') {
         node.parent.destroy();
     } else {
