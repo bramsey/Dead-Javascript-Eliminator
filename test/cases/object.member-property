@@ -1,0 +1,7 @@
+var obj = {
+    two: function() {
+        return 2;
+    }
+};
+
+console.log(obj.two());
