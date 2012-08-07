@@ -244,6 +244,8 @@ var getReference = function(node, ref) {
         } else {
             return; // Only gets here if a reference wasn't found.
         }
+    } else if (ref.type === 'ThisExpression') {
+        return undefined;
     } else {
         return ref; // if ref isn't actually a reference to something else
     }
@@ -374,10 +376,11 @@ var visitor = {
 
     MemberExpression: function(node) {
         var objectRef = getReference(node,
-                node.object.name),
+                node.object),
             propKey = node.property.name || node.property.value,
             propertyRef;
         if (objectRef) {
+            console.log(objectRef);
             // populate scope for object if the scope is empty.
             if (!objectRef.value.scope[propKey]) {
                 walk(objectRef.value, grapher);
