@@ -182,11 +182,9 @@ var removeDeclaration = function(node) {
     if (node.visited) return;
     if (node.type === 'VariableDeclarator') {
         if (node.parent.declarations.length === 1) {
-            console.log('deleted: ' + node.id.name);
             node.parent.destroy(); // remove parent if only declarator.
         } else {
             if (node.parent.visited) {
-                console.log('deleting with source: ');
                 cleanupAround(node.range);
                 node.destroy();
             } else {
@@ -199,10 +197,8 @@ var removeDeclaration = function(node) {
             node.destroy();
         }
     } else if (node.type === 'AssignmentExpression') {
-        console.log('deleted: ' + node.left.name);
         node.parent.destroy();
     } else {
-        console.log('deleted: ' + node.type);
         node.destroy();
         if (node.parent) removeDeclaration(node.parent);
     }
@@ -259,7 +255,6 @@ var getReference = function(node, ref) {
                 undefined;
         } else {
             // TODO: throw error instead of console log.
-            //console.log('reference not found: ' + node.name);
             return; // Only gets here if a reference wasn't found.
         }
     } else {
@@ -274,7 +269,6 @@ var getReference = function(node, ref) {
 // marks all nodes from the given up to the root expression node as visited.
 var visit = function(node) {
     if (!node || node.visited) return;
-    //console.log('visiting: ' + node.type + ' -> ' + node.name + '\n');
     node.visited = true;
 
     switch (node.type) {
@@ -412,7 +406,6 @@ var visitor = {
             }
         } else {
             // TODO: throw error instead of console log.
-            //console.log('reference not found: ' + node.name);
             return; // Only gets here if a reference wasn't found.
         }
     },
@@ -427,7 +420,6 @@ var visitor = {
             if (reference.assignment) visit(reference.assignment);
         } else {
             // TODO: handle errors better.
-            //console.log('reference not found: ' + node.name);
             return; // Only gets here if a reference wasn't found.
         }
     }
