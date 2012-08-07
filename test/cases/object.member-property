@@ -1,7 +1,8 @@
 var obj = {
     a: 1,
+
     two: function() {
-        return a;
+        return obj.a;
     }
 };
 

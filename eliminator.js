@@ -213,7 +213,7 @@ var getScopeWithReference = function(node, ref) {
     if (node.scope && node.scope[ref.name || ref.value]) {
         return node.scope;
     } else {
-        return getScopeWithReference(node.parent, ref);
+        getScopeWithReference(node.parent, ref);
     }
 };
 
@@ -387,10 +387,9 @@ var visitor = {
             if (objectRef.declaration) visit(objectRef.declaration);
             if (objectRef.assignment) visit(objectRef.assignment);
             if (propertyRef) {
-                visit(propertyRef.value);
                 if (propertyRef.declaration) visit(propertyRef.declaration);
                 if (propertyRef.assignment) visit(propertyRef.assignment);
-                walk(propertyRef, grapher);
+                walk(propertyRef.value, grapher);
             }
         } else {
             // TODO: throw error instead of console log.

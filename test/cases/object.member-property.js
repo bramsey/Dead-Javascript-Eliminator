@@ -4,7 +4,7 @@ var obj = {
         return 1;
     },
     two: function() {
-        return a;
+        return obj.a;
     }
 };
 
