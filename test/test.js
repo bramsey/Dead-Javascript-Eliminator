@@ -4,7 +4,7 @@ var should = require('should');
  * Module dependencies.
  */
 
-var eliminator = require('../walk.js')
+var eliminator = require('../eliminator.js')
   , fs = require('fs');
 
 // test cases
