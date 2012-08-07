@@ -131,6 +131,67 @@ var walk = function(node, action, parent) {
     }
 };
 
+var isCleanable = function(character) {
+    switch(character) {
+        case ' ':
+        case ',':
+        case '=':
+            return true;
+    }
+    return false;
+};
+
+var boundChar = function(chunks, start, inc) {
+    var c = chunks[start];
+
+    while(c === ' ' || c === '') {
+       c = chunks[start+=inc];
+    }
+
+    return c;
+};
+
+var cleanupDeclarator = function(range) {
+    var start = range[0]-1,
+        end = range[1]+1,
+        lastIndex = result.chunks.length-1,
+        leftBound = boundChar(result.chunks, start, -1),
+        rightBound = boundChar(result.chunks, end, 1);
+
+    if (leftBound === ',' && rightBound !== ',') {
+        // delete left over comma
+        for(;start > 0 && isCleanable(result.chunks[start]); start--) {
+            result.chunks[start] = '';
+        }
+    } else {
+        // delete right over comma
+        for(;end < lastIndex && isCleanable(result.chunks[end]); end++) {
+            result.chunks[end] = '';
+        }
+    }
+};
+
+var cleanupInitializer = function(range) {
+    var start = range[0]-1,
+        end = range[1]+1,
+        lastIndex = result.chunks.length-1,
+        leftBound = boundChar(result.chunks, start, -1);
+
+    if (leftBound === '=') {
+        // delete left
+        for(;start > 0 && 
+                (result.chunks[start] === ' ' || result.chunks[start] === '=');
+                start--) {
+            result.chunks[start] = '';
+        }
+    }
+    // delete right
+    for(;end < lastIndex && result.chunks[end] === ' '; end++) {
+        result.chunks[end] = '';
+    }
+};
+
+
 // walk up the tree until the closest declaration is found then remove it.
 // TODO: refactor to use a deletor similar to visitor pattern.
 var removeDeclaration = function(node) {
@@ -140,7 +201,17 @@ var removeDeclaration = function(node) {
             console.log('deleted: ' + node.id.name);
             node.parent.destroy(); // remove parent if only declarator.
         } else {
-            console.log('deleted: ' + node);
+            if (node.parent.visited) {
+                console.log('deleting with source: ');
+                cleanupDeclarator(node.range);
+                node.destroy();
+            } else {
+                removeDeclaration(node.parent);
+            }
+        }
+    } else if (node.parent.type === 'VariableDeclarator') {
+        if (node.parent.visited) {
+            cleanupInitializer(node.range);
             node.destroy();
         }
     } else if (node.type === 'AssignmentExpression') {
@@ -593,7 +664,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         return true;
     });
 
-    console.log(stringify(tree, '   ', ''));
+    //console.log(stringify(tree, '   ', ''));
     console.log('');
     //console.log(result.toString().trim()); // output result source.
     //console.log(result.chunks);
