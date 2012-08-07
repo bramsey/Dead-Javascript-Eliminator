@@ -4,6 +4,7 @@ var _ = require('underscore'),
     result,
     tree;
 
+// action that the walker uses on the visit pass.
 var grapher = function(node) {
     if (node.visited) return false;
     if (visitor[node.type]) {
@@ -131,6 +132,7 @@ var walk = function(node, action, parent) {
     }
 };
 
+// check if the given character can be cleaned from the source
 var isCleanable = function(character) {
     switch(character) {
         case ' ':
@@ -141,6 +143,7 @@ var isCleanable = function(character) {
     return false;
 };
 
+// determines the non-space character to the right or left of the start point
 var boundChar = function(chunks, start, inc) {
     var c = chunks[start];
 
@@ -151,14 +154,16 @@ var boundChar = function(chunks, start, inc) {
     return c;
 };
 
-var cleanupDeclarator = function(range) {
+// removes extraneous characters around removed declarators or
+// declarator initializers
+var cleanupAround = function(range) {
     var start = range[0]-1,
         end = range[1]+1,
         lastIndex = result.chunks.length-1,
         leftBound = boundChar(result.chunks, start, -1),
         rightBound = boundChar(result.chunks, end, 1);
 
-    if (leftBound === ',' && rightBound !== ',') {
+    if (leftBound === '=' || leftBound === ',' && rightBound !== ',') {
         // delete left over comma
         for(;start > 0 && isCleanable(result.chunks[start]); start--) {
             result.chunks[start] = '';
@@ -171,27 +176,6 @@ var cleanupDeclarator = function(range) {
     }
 };
 
-var cleanupInitializer = function(range) {
-    var start = range[0]-1,
-        end = range[1]+1,
-        lastIndex = result.chunks.length-1,
-        leftBound = boundChar(result.chunks, start, -1);
-
-    if (leftBound === '=') {
-        // delete left
-        for(;start > 0 && 
-                (result.chunks[start] === ' ' || result.chunks[start] === '=');
-                start--) {
-            result.chunks[start] = '';
-        }
-    }
-    // delete right
-    for(;end < lastIndex && result.chunks[end] === ' '; end++) {
-        result.chunks[end] = '';
-    }
-};
-
-
 // walk up the tree until the closest declaration is found then remove it.
 // TODO: refactor to use a deletor similar to visitor pattern.
 var removeDeclaration = function(node) {
@@ -203,7 +187,7 @@ var removeDeclaration = function(node) {
         } else {
             if (node.parent.visited) {
                 console.log('deleting with source: ');
-                cleanupDeclarator(node.range);
+                cleanupAround(node.range);
                 node.destroy();
             } else {
                 removeDeclaration(node.parent);
@@ -211,7 +195,7 @@ var removeDeclaration = function(node) {
         }
     } else if (node.parent.type === 'VariableDeclarator') {
         if (node.parent.visited) {
-            cleanupInitializer(node.range);
+            cleanupAround(node.range);
             node.destroy();
         }
     } else if (node.type === 'AssignmentExpression') {
@@ -287,6 +271,7 @@ var getReference = function(node, ref) {
         getReference(node.parent, name);
 };
 
+// marks all nodes from the given up to the root expression node as visited.
 var visit = function(node) {
     if (!node || node.visited) return;
     //console.log('visiting: ' + node.type + ' -> ' + node.name + '\n');
@@ -303,88 +288,8 @@ var visit = function(node) {
     }
 };
 
+// object to store the unique visitor functions.
 var visitor = {
-    /*
-    Program: function(node) {
-        // Affects scope
-        for(var i=0, l=node.body.length; i < l; i++) {
-            walk(node.body[i]);
-        }
-    },
-
-    // Statements
-    //EmptyStatement: function(node) { },
-    BlockStatement: function(node) {
-        for(var i=0, l=node.body.length; i < l; i++) {
-            walk(node.body[i]);
-        }
-    },
-    ExpressionStatement: function(node) {
-        walk(node.expression);
-    },
-    IfStatement: function(node) {
-        walk(node.text);
-        walk(node.consequent);
-        if(node.alternate) walk(node.alternate);
-    },
-    LabeledStatement: function(node) {
-        walk(node.label);
-        walk(node.body);
-    },
-    BreakStatement: function(node) {
-        walk(node.label);
-    },
-    ContinueStatement: function(node) {
-        walk(node.label);
-    },
-    WithStatement: function(node) {
-        // Affects scope
-        walk(node.object);
-        walk(node.body);
-    },
-    SwitchStatement: function(node) {
-        // QUESTION: what to do with lexical flag?
-        walk(node.discriminant);
-        for(var i=0, l=node.cases.length; i < l; i++) {
-            walk(node.cases[i]);
-        }
-    },
-    ReturnStatement: function(node) {
-        walk(node.argument);
-    },
-    ThrowStatement: function(node) {
-        walk(node.argument);
-    },
-    TryStatement: function(node) {
-        // QUESTION: do what with handlers and finalizer?
-        walk(node.block);
-        for(var i=0, l=node.handlers.length; i<l; i++) {
-            walk(node.handlers[i]);
-        }
-        walk(node.finalizer);
-    },
-    WhileStatement: function(node) {
-        walk(node.test);
-    },
-    DoWhileStatement: function(node) {
-        walk(node.body);
-        walk(node.test);
-    },
-    ForStatement: function(node) {
-        walk(node.init);
-        walk(node.test);
-        walk(node.update);
-        walk(node.body);
-    },
-    ForInStatement: function(node) {
-        // QUESTION: do what with each?
-        walk(node.left);
-        walk(node.right);
-        walk(node.body);
-    },
-    DebuggerStatement: function(node) { },
-    */
-    // Declarations
     FunctionDeclaration: function(node) {
         var scope = getScope(node.parent);
         scope[node.id.name] = {
@@ -393,6 +298,7 @@ var visitor = {
         }
         return;
     },
+
     VariableDeclaration: function(node) {
         var scope = getScope(node);
         _.each(node.declarations, function(declarator) {
@@ -403,11 +309,7 @@ var visitor = {
         });
         return;
     },
-    /*
-    VariableDeclarator: function(node) {
-    },
-    // Expressions
-    */
+
     ExpressionStatement: function(node) {
         if (node.expression.type !== 'AssignmentExpression') {
             visit(node);
@@ -416,14 +318,7 @@ var visitor = {
             walk(node.expression, grapher);
         }
     },
-    /*
-    ThisExpression: function(node) { },
-    ArrayExpression: function(node) {
-        for(var i=0, l=node.elements.length; i<l; i++) {
-            walk(node.elements[i]);
-        }
-    },
-    */
+
     ObjectExpression: function(node) {
         var scope = node.scope;
         _.each(node.properties, function(property) {
@@ -433,25 +328,7 @@ var visitor = {
             };
         });
     },
-    /*
-    FunctionExpression: function(node) {
-    },
-    SequenceExpression: function(node) {
-        for(var i=0, l=node.expressions.length; i < l; i++) {
-            walk(node.expressions[i]);
-        }
-    },
-    UnaryExpression: function(node) {
-        // TODO: do something with operator
-        walk(node.expression);
-    },
-    // CONTINUE HERE
-    BinaryExpression: function(node) {
-        // TODO: do something with operator
-        walk(node.left);
-        walk(node.right);
-    },
-    */
+
     AssignmentExpression: function(node) {
         if (node.operator === '=') {
             var scope, obj, declaration, leftKey;
@@ -486,29 +363,7 @@ var visitor = {
                 };
         }
     },
-    /*
-    UpdateExpression: function(node) {
-        // QUESTION: do what with prefix boolean?
-        // TODO: do something with operator
-        walk(node.argument);
-    },
-    LogicalExpression: function(node) {
-        // TODO: do something with operator
-        walk(node.left);
-        walk(node.right);
-    },
-    ConditionalExpression: function(node) {
-        walk(node.test);
-        walk(node.alternate);
-        walk(node.consequent);
-    },
-    NewExpression: function(node) {
-        walk(node.callee);
-        for(var i=0, l=node.arguments.length; i<l; i++) {
-            walk(node.arguments[i]);
-        }
-    },
-    */
+
     CallExpression: function(node) {
         var callee = getReference(node, node.callee),
             params;
@@ -534,6 +389,7 @@ var visitor = {
             walk(argument, grapher);
         });
     },
+
     MemberExpression: function(node) {
         var objectRef = getReference(node,
                 node.object.name),
@@ -561,29 +417,6 @@ var visitor = {
         }
     },
 
-    // Patterns
-    // QUESTION: what should go in patterns???
-
-    // Clauses
-    /*
-    SwitchCase: function(node) {
-        walk(node.test);
-        for(var i=0, l=node.consequent.length; i<l; i++) {
-            walk(node.consequent[i]);
-        }
-    },
-    CatchClause: function(node) {
-        walk(node.param);
-        walk(node.body);
-    },
-
-    // Miscelaneous
-    Property: function(node) {
-        // QUESTION: do what with kind?
-        walk(node.key);
-        walk(node.value);
-    },
-    */
     Identifier: function(node) {
         var reference = getReference(node,
                 node.name);
@@ -598,27 +431,6 @@ var visitor = {
             return; // Only gets here if a reference wasn't found.
         }
     }
-    /*
-    Literal: function(node) {
-        // TODO: assign value to something.
-        // access with: node.value
-    },
-    UnaryOperator: function(node) {
-        walk(node.token);
-    },
-    BinaryOperator: function(node) {
-        walk(node.token);
-    },
-    LogicalOperator: function(node) {
-        walk(node.token);
-    },
-    AssignmentOperator: function(node) {
-        walk(node.token);
-    },
-    UpdateOperator: function(node) {
-        walk(node.token);
-    }
-    */
 };
 
 var eliminate = exports.eliminate = function(fileContents) {
@@ -665,9 +477,7 @@ var eliminate = exports.eliminate = function(fileContents) {
     });
 
     //console.log(stringify(tree, '   ', ''));
-    console.log('');
     //console.log(result.toString().trim()); // output result source.
-    //console.log(result.chunks);
     return result.toString().trim();
 };
 })(typeof exports === 'undefined' ? (eliminator = {}) : exports);
