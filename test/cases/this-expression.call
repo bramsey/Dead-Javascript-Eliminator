@@ -1,0 +1,7 @@
+var obj = { foo: 'foo' };
+
+function test() {
+    console.log(this.foo);
+}
+
+test.call(obj);

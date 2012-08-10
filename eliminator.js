@@ -194,6 +194,15 @@ var removeNode = function(node) {
     }
 };
 
+// find the nearest object or global object.
+var getThis = function(node) {
+    if (!node || node.type === 'Program') {
+        return { value: tree };
+    } else {
+        return node.type === 'ObjectExpression' ? { value: node } : getThis(node.parent);
+    }
+};
+
 // find the nearest scope by walking up the tree.
 var getScope = function(node) {
     if (!node) return;
@@ -229,9 +238,14 @@ var getReference = function(node, ref) {
     } else if (ref.type === 'MemberExpression') {
         // TODO: refactor this since logic is similar to walking
         // a member expression.
-        var objectRef = getReference(node, ref.object.name),
+        var objectRef,
             propKey = ref.property.name || ref.property.value,
             propertyRef;
+
+        objectRef = ref.object.type === 'ThisExpression' ? 
+            getThis(node) :
+            getReference(node, ref.object.name);
+
         if (objectRef && objectRef.value.scope) {
             // populate scope for object if the scope is empty.
             if (!objectRef.value.scope[propKey]) {
@@ -245,7 +259,7 @@ var getReference = function(node, ref) {
             return; // Only gets here if a reference wasn't found.
         }
     } else if (ref.type === 'ThisExpression') {
-        return undefined;
+        return getThis(node);
     } else {
         return { value: ref }; // if ref isn't actually a reference to something else
     }
@@ -375,10 +389,14 @@ var visitor = {
     },
 
     MemberExpression: function(node) {
-        var objectRef = getReference(node,
-                node.object),
+        var objectRef,
             propKey = node.property.name || node.property.value,
             propertyRef;
+
+        objectRef = node.object.type === 'ThisExpression' ? 
+            getThis(node) :
+            getReference(node, node.object.name);
+
         if (objectRef && objectRef.value.scope) {
             // populate scope for object if the scope is empty.
             if (!objectRef.value.scope[propKey]) {
@@ -398,12 +416,24 @@ var visitor = {
         }
     },
 
+    ThisExpression: function(node) {
+        var reference = getThis(node);
+
+        if (reference) {
+            walk(reference.value, grapher);
+            if (reference.declaration) visit(reference.declaration);
+            if (reference.assignment) visit(reference.assignment);
+        } else {
+            // TODO: handle errors better.
+            return; // Only gets here if a reference wasn't found.
+        }
+    },
+
     Identifier: function(node) {
         var reference = getReference(node,
                 node.name);
         if (reference) {
             walk(reference.value, grapher);
-            visit(reference.value);
             if (reference.declaration) visit(reference.declaration);
             if (reference.assignment) visit(reference.assignment);
         } else {
