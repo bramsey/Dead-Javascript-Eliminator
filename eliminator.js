@@ -220,7 +220,7 @@ var getScopeWithReference = function(node, ref) {
 // find the specified reference in the scoped scope hierarchy.
 var getReference = function(node, ref) {
     var name;
-    if (!node) return;
+    if (!node || !ref) return;
 
     if (!ref.type) {
         name = ref;
@@ -232,7 +232,7 @@ var getReference = function(node, ref) {
         var objectRef = getReference(node, ref.object.name),
             propKey = ref.property.name || ref.property.value,
             propertyRef;
-        if (objectRef) {
+        if (objectRef && objectRef.value.scope) {
             // populate scope for object if the scope is empty.
             if (!objectRef.value.scope[propKey]) {
                 walk(objectRef.value, grapher);
@@ -247,7 +247,7 @@ var getReference = function(node, ref) {
     } else if (ref.type === 'ThisExpression') {
         return undefined;
     } else {
-        return ref; // if ref isn't actually a reference to something else
+        return { value: ref }; // if ref isn't actually a reference to something else
     }
 
     return (node.scope && node.scope[name]) ?
@@ -314,7 +314,7 @@ var visitor = {
 
     AssignmentExpression: function(node) {
         if (node.operator === '=') {
-            var scope, obj, declaration, leftKey;
+            var scope, obj, declaration, leftKey, objRef;
             if (node.left.property) {
                 leftKey = node.left.property.name ||
                           node.left.property.value;
@@ -323,8 +323,8 @@ var visitor = {
                           node.left.value;
             }
             if (node.left.type === 'MemberExpression') {
-                obj = getReference(node,
-                        node.left.object.name).value;
+                objRef = getReference(node, node.left.object.name);
+                obj = objRef ? objRef.value : undefined;
                 scope = obj ? obj.scope : undefined;
                 if (obj) {
                     declaration = _.find(obj.properties, function(property) {
@@ -340,7 +340,7 @@ var visitor = {
                     getReference(node, leftKey).declaration :
                     undefined;
             }
-            scope[leftKey] = {
+            if (scope) scope[leftKey] = {
                     value: node.right,
                     assignment: node.left,
                     declaration: declaration
@@ -379,8 +379,7 @@ var visitor = {
                 node.object),
             propKey = node.property.name || node.property.value,
             propertyRef;
-        if (objectRef) {
-            console.log(objectRef);
+        if (objectRef && objectRef.value.scope) {
             // populate scope for object if the scope is empty.
             if (!objectRef.value.scope[propKey]) {
                 walk(objectRef.value, grapher);
