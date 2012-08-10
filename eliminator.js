@@ -214,15 +214,14 @@ var getScopeWithReference = function(node, ref) {
     if (!node) return;
 
     if (ref.type === 'MemberExpression') {
-        var obj = getReference(node, ref.object.name);
-        obj.visited = true;// TODO: this belongs someplace else probably
-        return obj ? obj.scope : undefined;
+        var obj = getReference(node, ref.object);
+        return obj ? obj.value.scope : undefined;
     }
 
     if (node.scope && node.scope[ref.name || ref.value]) {
         return node.scope;
     } else {
-        getScopeWithReference(node.parent, ref);
+         return getScopeWithReference(node.parent, ref);
     }
 };
 
@@ -242,9 +241,7 @@ var getReference = function(node, ref) {
             propKey = ref.property.name || ref.property.value,
             propertyRef;
 
-        objectRef = ref.object.type === 'ThisExpression' ? 
-            getThis(node) :
-            getReference(node, ref.object.name);
+        objectRef = getReference(node, ref.object);
 
         if (objectRef && objectRef.value.scope) {
             // populate scope for object if the scope is empty.
@@ -337,7 +334,7 @@ var visitor = {
                           node.left.value;
             }
             if (node.left.type === 'MemberExpression') {
-                objRef = getReference(node, node.left.object.name);
+                objRef = getReference(node, node.left.object);
                 obj = objRef ? objRef.value : undefined;
                 scope = obj ? obj.scope : undefined;
                 if (obj) {
@@ -354,11 +351,13 @@ var visitor = {
                     getReference(node, leftKey).declaration :
                     undefined;
             }
-            if (scope) scope[leftKey] = {
+            if (scope) {
+                scope[leftKey] = {
                     value: node.right,
                     assignment: node.left,
                     declaration: declaration
                 };
+            }
         }
     },
 
@@ -432,7 +431,7 @@ var visitor = {
     Identifier: function(node) {
         var reference = getReference(node,
                 node.name);
-        if (reference) {
+        if (reference && reference.value) {
             walk(reference.value, grapher);
             if (reference.declaration) visit(reference.declaration);
             if (reference.assignment) visit(reference.assignment);
