@@ -66,6 +66,9 @@ var stringify = function(node, tab, indent) {
     return output;
 };
 
+var printHelper = function(node) {
+    console.log(stringify(node, '   ', ''));
+};
 
 // Checks if the node type affects scope.
 var affectsScope = function(type) {
@@ -230,7 +233,7 @@ var getReference = function(node, ref) {
     var name;
     if (!node || !ref) return;
 
-    if (!ref.type) {
+    if (!ref.type && !ref.value) {
         name = ref;
     } else if (ref.type === 'Identifier') {
         name = ref.name;
@@ -240,25 +243,27 @@ var getReference = function(node, ref) {
         var objectRef,
             propKey = ref.property.name || ref.property.value,
             propertyRef;
-
         objectRef = getReference(node, ref.object);
-
         if (objectRef && objectRef.value.scope) {
             // populate scope for object if the scope is empty.
             if (!objectRef.value.scope[propKey]) {
                 walk(objectRef.value, grapher);
             }
             propertyRef = objectRef.value.scope[propKey];
+            if (propertyRef.value && propertyRef.value.type === 'ObjectExpression') {
+                walk(propertyRef.value, grapher);
+            }
             return propertyRef ? 
                 getReference(node, propertyRef) :
                 undefined;
         } else {
+            console.log('unfound reference, whyyyyyyyy!!!?!?!?');
             return; // Only gets here if a reference wasn't found.
         }
     } else if (ref.type === 'ThisExpression') {
         return getThis(node);
     } else {
-        return { value: ref }; // if ref isn't actually a reference to something else
+        return ref.value ? ref : { value: ref }; // if ref isn't actually a reference to something else
     }
 
     return (node.scope && node.scope[name]) ?
@@ -314,12 +319,17 @@ var visitor = {
     },
 
     ObjectExpression: function(node) {
-        var scope = node.scope;
+        var scope = node.scope, propName;
         _.each(node.properties, function(property) {
-            scope[property.key.name || property.key.value] = {
-                value: property.value,
-                declaration: property
-            };
+            propName = property.key.name || property.key.value;
+            if (property.value && property.value.type === 'Identifier' || property.value.type === 'MemberExpression') {
+                scope[propName] = getReference(node, property.value);
+            } else {
+                scope[propName] = {
+                    value: property.value,
+                    declaration: property
+                };
+            }
         });
     },
 
@@ -485,7 +495,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         return true;
     });
 
-    //console.log(stringify(tree, '   ', ''));
+    //printHelper(tree);
     //console.log(result.toString().trim()); // output result source.
     return result.toString().trim();
 };
