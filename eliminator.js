@@ -202,6 +202,8 @@ var removeNode = function(node) {
 var getThis = function(node) {
     if (!node || node.type === 'Program') {
         return { value: tree };
+    } else if (node.this) {
+        return node.this;
     } else {
         return node.type === 'ObjectExpression' ? 
             { value: node } : 
@@ -253,7 +255,7 @@ var getReference = function(node, ref) {
                 walk(objectRef.value, grapher);
             }
             propertyRef = objectRef.value.scope[propKey];
-            if (propertyRef.value && 
+            if (propertyRef && propertyRef.value &&
                     propertyRef.value.type === 'ObjectExpression') {
                 walk(propertyRef.value, grapher);
             }
@@ -274,6 +276,12 @@ var getReference = function(node, ref) {
     return (node.scope && node.scope[name]) ?
         node.scope[name] :
         getReference(node.parent, name);
+};
+
+var passesThis = function(node) {
+    return (node.type === 'MemberExpression' &&
+            (node.property.name === 'apply' ||
+            node.property.name === 'call'));
 };
 
 // marks all nodes from the given up to the root expression node as visited.
@@ -378,26 +386,38 @@ var visitor = {
     },
 
     CallExpression: function(node) {
-        var callee = getReference(node, node.callee),
-            params;
+        var callee, params, ref;
 
-        if (callee && callee.value) {
-            callee = callee.value.params ? 
-                callee.value : 
-                callee.value.parent;
-            params = callee.params;
-        }
-        if (params) {
-            for (var i=0, l=params.length; i < l; i++) {
-                callee.scope[params[i].name] = node['arguments'][i] ?
-                    {
-                        value: node['arguments'][i]
-                    } : undefined;
+        ref = passesThis(node.callee) ?
+            node.callee.object :
+            node.callee;
+
+        callee = getReference(node, ref);
+
+        if (callee) {
+            if (callee.value) {
+                callee = callee.value.params ?
+                    callee.value :
+                    callee.value.parent;
+                params = callee.params;
             }
+            if (params) {
+                for (var i=0, l=params.length; i < l; i++) {
+                    callee.scope[params[i].name] = node['arguments'][i] ?
+                        {
+                            value: node['arguments'][i]
+                        } : undefined;
+                }
+            }
+
+            callee.this = passesThis(node.callee) ?
+                getReference(node, node.arguments[0]) :
+                undefined;
+
+
+            walk(node.callee, grapher);
         }
-        
         visit(node);
-        walk(node.callee, grapher);
         _.each(node.arguments, function(argument) {
             walk(argument, grapher);
         });
