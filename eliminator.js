@@ -36,7 +36,8 @@ var stringify = function(node, tab, indent) {
             continue;
         } else if (child instanceof Array) {
             if (key === 'range') {
-                output += indent + key + ': ' + child[0] + ' - ' + child[1] + '\n';
+                output += indent + key + ': ' + child[0] + ' - ' + 
+                    child[1] + '\n';
             } else {
                 output += indent + key + ':\n';
                 for (var i=0, l=child.length; i<l; i++) {
@@ -202,7 +203,9 @@ var getThis = function(node) {
     if (!node || node.type === 'Program') {
         return { value: tree };
     } else {
-        return node.type === 'ObjectExpression' ? { value: node } : getThis(node.parent);
+        return node.type === 'ObjectExpression' ? 
+            { value: node } : 
+            getThis(node.parent);
     }
 };
 
@@ -250,7 +253,8 @@ var getReference = function(node, ref) {
                 walk(objectRef.value, grapher);
             }
             propertyRef = objectRef.value.scope[propKey];
-            if (propertyRef.value && propertyRef.value.type === 'ObjectExpression') {
+            if (propertyRef.value && 
+                    propertyRef.value.type === 'ObjectExpression') {
                 walk(propertyRef.value, grapher);
             }
             return propertyRef ? 
@@ -263,7 +267,8 @@ var getReference = function(node, ref) {
     } else if (ref.type === 'ThisExpression') {
         return getThis(node);
     } else {
-        return ref.value ? ref : { value: ref }; // if ref isn't actually a reference to something else
+        // if ref isn't actually a reference to something else
+        return ref.value ? ref : { value: ref }; 
     }
 
     return (node.scope && node.scope[name]) ?
@@ -322,7 +327,8 @@ var visitor = {
         var scope = node.scope, propName;
         _.each(node.properties, function(property) {
             propName = property.key.name || property.key.value;
-            if (property.value && property.value.type === 'Identifier' || property.value.type === 'MemberExpression') {
+            if (property.value && property.value.type === 'Identifier' || 
+                    property.value.type === 'MemberExpression') {
                 scope[propName] = getReference(node, property.value);
             } else {
                 scope[propName] = {
