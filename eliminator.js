@@ -263,7 +263,7 @@ var getReference = function(node, ref) {
                 getReference(node, propertyRef) :
                 undefined;
         } else {
-            console.log('unfound reference, whyyyyyyyy!!!?!?!?');
+            //console.log('unfound reference, whyyyyyyyy!!!?!?!?');
             return; // Only gets here if a reference wasn't found.
         }
     } else if (ref.type === 'ThisExpression') {
@@ -388,6 +388,7 @@ var visitor = {
     CallExpression: function(node) {
         var callee, params, ref;
 
+        // set calling function to the caller of apply
         ref = passesThis(node.callee) ?
             node.callee.object :
             node.callee;
@@ -414,8 +415,13 @@ var visitor = {
                 getReference(node, node.arguments[0]) :
                 undefined;
 
-
-            walk(node.callee, grapher);
+            if (passesThis(node.callee)) {
+                callee.this = getReference(node, node.arguments[0]);
+                walk(callee.body, grapher);
+            } else {
+                callee.this = undefined;
+                walk(node.callee, grapher);
+            }
         }
         visit(node);
         _.each(node.arguments, function(argument) {
