@@ -386,7 +386,7 @@ var visitor = {
     },
 
     CallExpression: function(node) {
-        var callee, params, ref;
+        var callee, params, ref, i, l, offset, argument;
 
         // set calling function to the caller of apply
         ref = passesThis(node.callee) ?
@@ -395,19 +395,28 @@ var visitor = {
 
         callee = getReference(node, ref);
 
+        // callee should only be undefined for external libraries
+        // and native javascript methods.
         if (callee) {
-            if (callee.value) {
-                callee = callee.value.params ?
-                    callee.value :
-                    callee.value.parent;
-                params = callee.params;
-            }
+            callee = callee.value.params ?
+                callee.value :
+                callee.value.parent;
+            params = callee.params;
+
             if (params) {
-                for (var i=0, l=params.length; i < l; i++) {
-                    callee.scope[params[i].name] = node['arguments'][i] ?
-                        {
-                            value: node['arguments'][i]
-                        } : undefined;
+                offset = passesThis(node.callee) ? 1 : 0;
+                for (i=0, l=params.length; i < l; i++) {
+                    argument = node['arguments'][i+offset];
+                    if (argument instanceof Array) {
+                        _.each(argument, function(child) {
+                            callee.scope[params[i].name] = {value:child};
+                        });
+                    } else {
+                        callee.scope[params[i].name] =
+                            node['arguments'][i+offset] ?
+                            {value: argument} :
+                            undefined;
+                    }
                 }
             }
 
@@ -527,7 +536,7 @@ var eliminate = exports.eliminate = function(fileContents) {
         return true;
     });
 
-    //printHelper(tree);
+    printHelper(tree);
     //console.log(result.toString().trim()); // output result source.
     return result.toString().trim();
 };
