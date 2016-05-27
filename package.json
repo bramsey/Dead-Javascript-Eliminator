@@ -1,7 +1,7 @@
 {
   "name": "eliminator",
   "description": "Javascript Dead Code Eliminator",
-  "version": "0.1",
+  "version": "0.1.0",
   "author": "Bill Ramsey <bill@billiamram.com>",
   "repository": "git://github.com/bramsey/Dead-Javascript-Eliminator",
   "main": "eliminator.js",
